@@ -5,8 +5,8 @@
 #include <limits>
 
 #include "backscatter/geometry/bvh.hpp"
-#include "backscatter/geometry/bvh4.hpp"
 #include "backscatter/geometry/triangle.hpp"
+#include "backscatter/geometry/wide_bvh.hpp"
 #include "backscatter/math/rng.hpp"
 #include "backscatter/scene/heightmap.hpp"
 
@@ -97,6 +97,8 @@ TEST_CASE("Rays through shared edges and vertices never leak", "[bvh][triangle][
   bvh.build(mesh);
   Bvh4 bvh4;
   bvh4.build(bvh);
+  Bvh8 bvh8;
+  bvh8.build(bvh);
   std::size_t misses = 0;
   std::size_t total = 0;
   for (std::size_t t = 0; t < mesh.num_triangles(); ++t) {
@@ -132,7 +134,7 @@ TEST_CASE("Rays through shared edges and vertices never leak", "[bvh][triangle][
           Hit h1;
           Hit h2;
           ++total;
-          if (!bvh.intersect(ray, h1) || !bvh4.intersect(ray, h2) || !bvh.occluded(ray)) {
+          if (!bvh.intersect(ray, h1) || !bvh4.intersect(ray, h2) || !bvh8.occluded(ray)) {
             ++misses;
           }
         }
@@ -152,6 +154,8 @@ TEST_CASE("BVH traversal matches brute force", "[bvh]") {
     bvh.build(mesh, cfg);
     Bvh4 bvh4;
     bvh4.build(bvh);
+    Bvh8 bvh8;
+    bvh8.build(bvh);
     const CounterRng rng(5);
     std::size_t hits = 0;
     for (std::uint64_t i = 0; i < 4000; ++i) {
@@ -162,12 +166,16 @@ TEST_CASE("BVH traversal matches brute force", "[bvh]") {
       const bool expect = brute_force(mesh, ray, ref);
       REQUIRE(bvh.intersect(ray, a) == expect);
       REQUIRE(bvh4.intersect(ray, b) == expect);
+      Hit c;
+      REQUIRE(bvh8.intersect(ray, c) == expect);
+      REQUIRE(bvh8.occluded(ray) == expect);
       REQUIRE(bvh.occluded(ray) == expect);
       REQUIRE(bvh4.occluded(ray) == expect);
       if (expect) {
         ++hits;
         REQUIRE(a.t == ref.t);
         REQUIRE(b.t == ref.t);
+        REQUIRE(c.t == ref.t);
       }
     }
     CHECK(hits > 500);

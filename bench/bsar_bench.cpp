@@ -12,7 +12,7 @@
 
 #include "backscatter/eval/theory_checks.hpp"
 #include "backscatter/geometry/bvh.hpp"
-#include "backscatter/geometry/bvh4.hpp"
+#include "backscatter/geometry/wide_bvh.hpp"
 #include "backscatter/image/backprojection.hpp"
 #include "backscatter/math/rng.hpp"
 #include "backscatter/scene/heightmap.hpp"
@@ -21,6 +21,7 @@
 #include "backscatter/trace/coherent.hpp"
 #include "backscatter/trace/geometric.hpp"
 #include "backscatter/trace/sensor_rays.hpp"
+#include "backscatter/util/cpu.hpp"
 #include "backscatter/util/parallel.hpp"
 
 using namespace bsar;
@@ -119,8 +120,13 @@ int main(int argc, char** argv) {
   }
   Bvh4 wide;
   const double collapse_s = time_best_of(quick ? 1 : 3, [&] { wide.build(bvhs[0]); });
-  std::printf("| Collapse SAH-16 to 4-wide | %.3f s | | %zu | |\n\n", collapse_s,
+  std::printf("| Collapse SAH-16 to 4-wide | %.3f s | | %zu | |\n", collapse_s,
               wide.nodes().size());
+  Bvh8 wide8;
+  const double collapse8_s = time_best_of(quick ? 1 : 3, [&] { wide8.build(bvhs[0]); });
+  std::printf("| Collapse SAH-16 to 8-wide | %.3f s | | %zu | |\n\n", collapse8_s,
+              wide8.nodes().size());
+  const char* wide8_kind = cpu_has_avx2_fma() ? "AVX2" : "scalar";
 
   // ---------------------------------------------------------- traversal
   const std::vector<Ray> rays = make_sar_rays(scene, n_rays);
@@ -133,6 +139,7 @@ int main(int argc, char** argv) {
   std::printf("| Binary BVH, SAH | 1 | %.2f |\n", trace_rate(bvhs[0], rays, 1));
   const double wide1 = trace_rate(wide, rays, 1, &hits);
   std::printf("| 4-wide BVH (SSE), SAH | 1 | %.2f |\n", wide1);
+  std::printf("| 8-wide BVH (%s), SAH | 1 | %.2f |\n", wide8_kind, trace_rate(wide8, rays, 1));
   // The integrator issues rays line by line, sweeping the look angle, so
   // neighbouring rays touch neighbouring nodes. Same rays in that order:
   std::vector<Ray> sorted = rays;
@@ -143,7 +150,9 @@ int main(int argc, char** argv) {
   });
   std::printf("| Binary BVH, SAH, coherent order | 1 | %.2f |\n", trace_rate(bvhs[0], sorted, 1));
   const double wide1_sorted = trace_rate(wide, sorted, 1);
-  std::printf("| 4-wide BVH (SSE), SAH, coherent order | 1 | %.2f |\n\n", wide1_sorted);
+  std::printf("| 4-wide BVH (SSE), SAH, coherent order | 1 | %.2f |\n", wide1_sorted);
+  std::printf("| 8-wide BVH (%s), SAH, coherent order | 1 | %.2f |\n\n", wide8_kind,
+              trace_rate(wide8, sorted, 1));
   std::printf(
       "Hit rate: %.1f%%. Random order is the cache-hostile worst case; the renderer "
       "traces in coherent order.\n\n",

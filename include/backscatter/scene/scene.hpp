@@ -7,8 +7,8 @@
 #include <vector>
 
 #include "backscatter/geometry/bvh.hpp"
-#include "backscatter/geometry/bvh4.hpp"
 #include "backscatter/geometry/mesh.hpp"
+#include "backscatter/geometry/wide_bvh.hpp"
 #include "backscatter/scene/material.hpp"
 #include "backscatter/sensor/geodesy.hpp"
 

@@ -3,7 +3,7 @@ add_library(
   math/fft.cpp
   geometry/mesh.cpp
   geometry/bvh.cpp
-  geometry/bvh4.cpp
+  geometry/wide_bvh.cpp
   scene/material.cpp
   scene/heightmap.cpp
   scene/buildings.cpp
