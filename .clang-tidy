@@ -1,0 +1,21 @@
+---
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  cppcoreguidelines-owning-memory,
+  cppcoreguidelines-no-malloc,
+  misc-unused-using-decls,
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-use-emplace,
+  performance-*,
+  -performance-enum-size,
+  readability-braces-around-statements,
+  readability-const-return-type,
+  readability-redundant-*
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*/include/backscatter/.*'
+...

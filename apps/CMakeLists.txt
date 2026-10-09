@@ -1,0 +1,5 @@
+foreach(app bsar_render bsar_eval)
+  add_executable(${app} ${app}.cpp)
+  target_link_libraries(${app} PRIVATE backscatter::backscatter)
+  bsar_set_warnings(${app})
+endforeach()

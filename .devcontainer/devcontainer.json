@@ -1,0 +1,10 @@
+{
+  "name": "backscatter",
+  "build": { "dockerfile": "Dockerfile" },
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-vscode.cmake-tools", "llvm-vs-code-extensions.vscode-clangd"]
+    }
+  },
+  "postCreateCommand": "cmake --preset release"
+}

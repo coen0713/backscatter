@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "backscatter",
+  "version": "0.1.0",
+  "description": "A physically based SAR ray tracer",
+  "dependencies": ["catch2"],
+  "features": {
+    "gdal": {
+      "description": "Load GeoTIFF DEMs through GDAL (BSAR_WITH_GDAL=ON)",
+      "dependencies": [{ "name": "gdal", "default-features": false }]
+    }
+  }
+}

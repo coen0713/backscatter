@@ -1,0 +1,28 @@
+# Build trees
+/build/
+/out/
+/cmake-build-*/
+compile_commands.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Downloaded inputs and rendered outputs (fetched by data/*.py, never committed)
+/data/raw/
+/data/cache/
+/renders/
+*.tif
+*.tiff
+*.EOF
+*.SAFE/
+*.zip
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

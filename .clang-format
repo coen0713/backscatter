@@ -1,0 +1,14 @@
+---
+BasedOnStyle: Google
+ColumnLimit: 100
+IndentWidth: 2
+DerivePointerAlignment: false
+PointerAlignment: Left
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^<.*>'
+    Priority: 1
+  - Regex: '^"backscatter/'
+    Priority: 2
+  - Regex: '.*'
+    Priority: 3
