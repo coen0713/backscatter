@@ -40,8 +40,8 @@ class EnuFrame {
   }
 
  private:
-  Geodetic origin_{};
-  Vec3d origin_ecef_{};
+  Geodetic origin_;
+  Vec3d origin_ecef_;
   Vec3d east_{1, 0, 0};
   Vec3d north_{0, 1, 0};
   Vec3d up_{0, 0, 1};

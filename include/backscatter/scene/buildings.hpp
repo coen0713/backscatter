@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <limits>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -65,6 +66,9 @@ double signed_area(std::span<const Vec2d> ring);
 template <typename MaterialIndex>
 void extrude_footprints(const FootprintSet& set, const Heightmap* terrain, const EnuFrame* frame,
                         MaterialIndex&& material_index, TriangleMesh& out) {
+  if (set.geographic && frame == nullptr) {
+    throw std::invalid_argument("extrude_footprints: geographic footprints need an ENU frame");
+  }
   for (const Footprint& fp : set.footprints) {
     if (fp.ring.size() < 3) {
       continue;

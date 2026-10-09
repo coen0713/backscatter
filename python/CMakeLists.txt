@@ -13,3 +13,6 @@ target_link_libraries(backscatter_py PRIVATE backscatter::backscatter)
 
 # The static core library is linked into a shared module.
 set_target_properties(backscatter PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# `pip install .` (scikit-build-core) installs the module at the wheel root.
+install(TARGETS backscatter_py LIBRARY DESTINATION .)

@@ -1,0 +1,27 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "nanobind>=2.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "backscatter"
+version = "0.1.0"
+description = "A physically based SAR ray tracer (Python bindings)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Coen McFerson" }]
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.scikit-build]
+minimum-version = "0.10"
+build-dir = "build/{wheel_tag}"
+wheel.packages = []
+
+[tool.scikit-build.cmake.define]
+BSAR_BUILD_PYTHON = "ON"
+BSAR_BUILD_TESTS = "OFF"
+BSAR_BUILD_APPS = "OFF"
+BSAR_BUILD_BENCH = "OFF"

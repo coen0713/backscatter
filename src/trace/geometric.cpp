@@ -158,8 +158,8 @@ GeometricImage render_geometric(const Scene& scene, const Trajectory& trajectory
     throw std::invalid_argument("render_geometric: invalid configuration");
   }
   const Aabb& bounds = scene.bounds();
-  const double extent = length(Vec3d(bounds.extent()));
-  const double eps = 1e-3 + 1e-6 * extent;  // ray offset off surfaces [m]
+  const double scene_extent = length(Vec3d(bounds.extent()));
+  const double eps = 1e-3 + 1e-6 * scene_extent;  // ray offset off surfaces [m]
 
   // --- Acquisition window from the scene corners -------------------------
   double t_lo = std::numeric_limits<double>::infinity();
@@ -279,12 +279,12 @@ GeometricImage render_geometric(const Scene& scene, const Trajectory& trajectory
           // binning) removes aliasing between ray and bin spacings.
           // Multi-bounce paths stay point-binned: for corner reflectors every
           // path has the same length, so they focus to one range.
-          double extent = 0.0;
+          double footprint = 0.0;
           if (b == 0) {
             const double sin_in = std::sqrt(std::max(0.0, 1.0 - cos_in * cos_in));
-            extent = std::min(path * dtheta * sin_in / cos_in, 4.0 * dr);
+            footprint = std::min(path * dtheta * sin_in / cos_in, 4.0 * dr);
           }
-          splat(row, bounce_rows[b], (r_eq - near) / dr, extent / dr, contrib);
+          splat(row, bounce_rows[b], (r_eq - near) / dr, footprint / dr, contrib);
         }
 
         weight *= model.specular_reflectance(mat, cos_in, config.polarization);

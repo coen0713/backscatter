@@ -27,7 +27,7 @@ jobs:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y ninja-build ${{ matrix.pkg }}
       - name: Configure
@@ -49,7 +49,7 @@ jobs:
     name: gcc / GDAL
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y ninja-build libgdal-dev
       - run: cmake --preset gdal
@@ -59,7 +59,7 @@ jobs:
   format:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: pip install clang-format==19.1.7
       - name: clang-format
         run: |
@@ -71,7 +71,7 @@ jobs:
       CC: clang-18
       CXX: clang++-18
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y ninja-build clang-tidy-18
       - run: cmake --preset release -DBSAR_BUILD_TESTS=OFF -DBSAR_BUILD_BENCH=OFF
@@ -79,3 +79,20 @@ jobs:
         run: |
           git ls-files 'src/*.cpp' 'apps/*.cpp' | \
             xargs -P 4 -n 4 clang-tidy-18 -p build/release --quiet
+
+  python:
+    name: python / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14, windows-2022]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Build and install the module
+        run: pip install -v ".[test]"
+      - name: Test
+        run: pytest -v python/tests
