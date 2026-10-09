@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -24,9 +25,82 @@
 #include "backscatter/util/cpu.hpp"
 #include "backscatter/util/parallel.hpp"
 
+#ifdef BSAR_HAVE_EMBREE
+#include <embree4/rtcore.h>
+#endif
+
 using namespace bsar;
 
 namespace {
+
+#ifdef BSAR_HAVE_EMBREE
+/// Intel Embree 4 over the same triangles, as a reference point. Default
+/// scene flags; rtcIntersect1 per ray.
+class EmbreeAccel {
+ public:
+  EmbreeAccel(const TriangleMesh& mesh, RTCBuildQuality quality) {
+    device_ = rtcNewDevice(nullptr);
+    scene_ = rtcNewScene(device_);
+    rtcSetSceneBuildQuality(scene_, quality);
+    RTCGeometry geom = rtcNewGeometry(device_, RTC_GEOMETRY_TYPE_TRIANGLE);
+    rtcSetGeometryBuildQuality(geom, quality);
+    auto* v = static_cast<float*>(rtcSetNewGeometryBuffer(geom, RTC_BUFFER_TYPE_VERTEX, 0,
+                                                          RTC_FORMAT_FLOAT3, 3 * sizeof(float),
+                                                          mesh.num_vertices()));
+    for (std::size_t i = 0; i < mesh.num_vertices(); ++i) {
+      const Vec3f q = mesh.vertex(static_cast<std::uint32_t>(i));
+      v[3 * i] = q.x;
+      v[3 * i + 1] = q.y;
+      v[3 * i + 2] = q.z;
+    }
+    auto* idx = static_cast<unsigned*>(
+        rtcSetNewGeometryBuffer(geom, RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT3,
+                                3 * sizeof(unsigned), mesh.num_triangles()));
+    for (std::size_t t = 0; t < mesh.num_triangles(); ++t) {
+      const auto tri = mesh.indices(t);
+      idx[3 * t] = tri[0];
+      idx[3 * t + 1] = tri[1];
+      idx[3 * t + 2] = tri[2];
+    }
+    rtcCommitGeometry(geom);
+    rtcAttachGeometry(scene_, geom);
+    rtcReleaseGeometry(geom);
+    rtcCommitScene(scene_);
+  }
+  EmbreeAccel(const EmbreeAccel&) = delete;
+  EmbreeAccel& operator=(const EmbreeAccel&) = delete;
+  EmbreeAccel(EmbreeAccel&&) = delete;
+  EmbreeAccel& operator=(EmbreeAccel&&) = delete;
+  ~EmbreeAccel() {
+    rtcReleaseScene(scene_);
+    rtcReleaseDevice(device_);
+  }
+
+  bool intersect(const Ray& ray, Hit& hit) const {
+    RTCRayHit rh{};
+    rh.ray.org_x = ray.origin.x;
+    rh.ray.org_y = ray.origin.y;
+    rh.ray.org_z = ray.origin.z;
+    rh.ray.dir_x = ray.dir.x;
+    rh.ray.dir_y = ray.dir.y;
+    rh.ray.dir_z = ray.dir.z;
+    rh.ray.tnear = ray.tmin;
+    rh.ray.tfar = ray.tmax;
+    rh.ray.mask = 0xFFFFFFFFu;
+    rh.hit.geomID = RTC_INVALID_GEOMETRY_ID;
+    rtcIntersect1(scene_, &rh);
+    if (rh.hit.geomID == RTC_INVALID_GEOMETRY_ID) {
+      return false;
+    }
+    hit = {rh.ray.tfar, rh.hit.u, rh.hit.v, rh.hit.primID};
+    return true;
+  }
+
+ private:
+  RTCDevice device_ = nullptr;
+  RTCScene scene_ = nullptr;
+};
+#endif
 
 double time_best_of(int repeats, const std::function<void()>& fn) {
   double best = 1e300;
@@ -151,8 +225,42 @@ int main(int argc, char** argv) {
   std::printf("| Binary BVH, SAH, coherent order | 1 | %.2f |\n", trace_rate(bvhs[0], sorted, 1));
   const double wide1_sorted = trace_rate(wide, sorted, 1);
   std::printf("| 4-wide BVH (SSE), SAH, coherent order | 1 | %.2f |\n", wide1_sorted);
-  std::printf("| 8-wide BVH (%s), SAH, coherent order | 1 | %.2f |\n\n", wide8_kind,
-              trace_rate(wide8, sorted, 1));
+  const double wide8_sorted = trace_rate(wide8, sorted, 1);
+  std::printf("| 8-wide BVH (%s), SAH, coherent order | 1 | %.2f |\n", wide8_kind, wide8_sorted);
+#ifdef BSAR_HAVE_EMBREE
+  {
+    std::unique_ptr<EmbreeAccel> embree;
+    const double embree_build = time_best_of(
+        1, [&] { embree = std::make_unique<EmbreeAccel>(scene.mesh, RTC_BUILD_QUALITY_MEDIUM); });
+    const double e_random = trace_rate(*embree, rays, 1);
+    const double e_sorted = trace_rate(*embree, sorted, 1);
+    std::printf("| Embree %d.%d.%d (rtcIntersect1) | 1 | %.2f |\n", RTC_VERSION_MAJOR,
+                RTC_VERSION_MINOR, RTC_VERSION_PATCH, e_random);
+    std::printf("| Embree, coherent order | 1 | %.2f |\n\n", e_sorted);
+    // Same closest hit? Compare hit distances on the first 100k rays.
+    std::size_t agree = 0;
+    std::size_t total = 0;
+    for (std::size_t i = 0; i < std::min<std::size_t>(rays.size(), 100000); ++i) {
+      Hit a;
+      Hit b;
+      const bool ha = wide8.intersect(rays[i], a);
+      const bool hb = embree->intersect(rays[i], b);
+      ++total;
+      if (ha == hb && (!ha || std::abs(a.t - b.t) <= 1e-4f * std::max(1.0f, a.t))) {
+        ++agree;
+      }
+    }
+    const double best_sorted = std::max(wide1_sorted, wide8_sorted);
+    const double best_random = std::max(wide1, trace_rate(wide8, rays, 1));
+    std::printf(
+        "Embree build: %.3f s (medium quality). Embree is %.2fx our best single-thread rate in "
+        "coherent order (%.2fx in random order). Closest hits agree on %.3f%% of %zu rays.\n\n",
+        embree_build, e_sorted / best_sorted, e_random / best_random,
+        100.0 * static_cast<double>(agree) / static_cast<double>(total), total);
+  }
+#else
+  std::printf("\n(Embree comparison not built: configure with -DBSAR_WITH_EMBREE=ON.)\n\n");
+#endif
   std::printf(
       "Hit rate: %.1f%%. Random order is the cache-hostile worst case; the renderer "
       "traces in coherent order.\n\n",

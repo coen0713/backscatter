@@ -29,6 +29,9 @@ class TriangleMesh {
     return {vertex(i0_[t]), vertex(i1_[t]), vertex(i2_[t])};
   }
   [[nodiscard]] std::uint16_t material(std::size_t t) const { return material_[t]; }
+  [[nodiscard]] std::array<std::uint32_t, 3> indices(std::size_t t) const {
+    return {i0_[t], i1_[t], i2_[t]};
+  }
 
   /// Unit geometric normal following the counter-clockwise winding rule.
   [[nodiscard]] Vec3f normal(std::size_t t) const;

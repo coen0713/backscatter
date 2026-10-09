@@ -14,6 +14,7 @@ option(BSAR_WITH_GDAL "Enable GeoTIFF DEM loading through GDAL" OFF)
 option(BSAR_ENABLE_SANITIZERS "Build everything with ASan + UBSan" OFF)
 option(BSAR_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(BSAR_NATIVE "Compile for the host CPU (-march=native)" OFF)
+option(BSAR_WITH_EMBREE "Add Intel Embree 4 as a baseline in bsar_bench" OFF)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
