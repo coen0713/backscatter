@@ -198,14 +198,24 @@ int main(int argc, char** argv) {
   naive.threads = 1;
   const double t_naive = time_best_of(quick ? 1 : 3, [&] { (void)backproject(comp, pg, naive); });
   BackprojectionConfig blocked;
+  blocked.kernel = BackprojectionKernel::Blocked;
   blocked.threads = 1;
   const double t_blocked =
       time_best_of(quick ? 1 : 3, [&] { (void)backproject(comp, pg, blocked); });
-  blocked.threads = hw;
-  const double t_mt = time_best_of(quick ? 1 : 3, [&] { (void)backproject(comp, pg, blocked); });
   std::printf("| Naive (pixel-major) | 1 | %.2f | 1.00x |\n", work / t_naive * 1e-6);
   std::printf("| Cache-blocked | 1 | %.2f | %.2fx |\n", work / t_blocked * 1e-6,
               t_naive / t_blocked);
-  std::printf("| Cache-blocked | %u | %.2f | %.2fx |\n", hw, work / t_mt * 1e-6, t_naive / t_mt);
+  BackprojectionConfig best;
+  best.kernel = resolve_kernel(BackprojectionKernel::Auto);
+  const char* best_name =
+      best.kernel == BackprojectionKernel::Simd ? "AVX2 SIMD, cache-blocked" : "Cache-blocked";
+  if (best.kernel == BackprojectionKernel::Simd) {
+    best.threads = 1;
+    const double t_simd = time_best_of(quick ? 1 : 3, [&] { (void)backproject(comp, pg, best); });
+    std::printf("| %s | 1 | %.2f | %.2fx |\n", best_name, work / t_simd * 1e-6, t_naive / t_simd);
+  }
+  best.threads = hw;
+  const double t_mt = time_best_of(quick ? 1 : 3, [&] { (void)backproject(comp, pg, best); });
+  std::printf("| %s | %u | %.2f | %.2fx |\n", best_name, hw, work / t_mt * 1e-6, t_naive / t_mt);
   return 0;
 }

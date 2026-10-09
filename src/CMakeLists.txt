@@ -17,6 +17,8 @@ add_library(
   trace/coherent.cpp
   image/io.cpp
   image/backprojection.cpp
+  image/backprojection_simd.cpp
+  util/cpu.cpp
   eval/metrics.cpp
   eval/theory_checks.cpp)
 add_library(backscatter::backscatter ALIAS backscatter)

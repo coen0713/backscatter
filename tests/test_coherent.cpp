@@ -141,6 +141,7 @@ TEST_CASE("Backprojection kernels agree bit for bit", "[coherent][backprojection
   BackprojectionConfig naive;
   naive.kernel = BackprojectionKernel::Naive;
   BackprojectionConfig blocked;
+  blocked.kernel = BackprojectionKernel::Blocked;
   blocked.pixel_block = 37;
   blocked.pulse_block = 5;
   const auto a = backproject(comp, grid, naive);
@@ -154,4 +155,40 @@ TEST_CASE("Backprojection kernels agree bit for bit", "[coherent][backprojection
                                      [](auto x, auto y) { return std::abs(x) < std::abs(y); }) -
                     a.data.begin();
   CHECK(static_cast<std::size_t>(peak) == 20 * grid.width + 20);
+}
+
+TEST_CASE("SIMD backprojection agrees with the scalar kernel", "[coherent][backprojection]") {
+  const RadarParams radar = theory_radar();
+  const LinearTrajectory track({-4000.0, 0.0, 3000.0}, {0.0, 100.0, 0.0}, -10.0, 10.0);
+  const Scene scene = make_plane_scene(20.0);
+  ScattererConfig sc;
+  sc.density = 3.0;
+  auto s = sample_scatterers(scene, track.position(0.0), sc, FacetScatteringModel{});
+  s.emplace_back(Vec3d{1.0, -2.0, 0.0}, 3.0);
+  const CompressedData comp = range_compress(
+      synthesize_raw(s, track, radar, auto_echo_window(scene.bounds(), track, radar)), 8);
+  PixelGrid grid;
+  grid.width = 43;  // not a multiple of 4: exercises the scalar remainder
+  grid.height = 21;
+  grid.origin = {-10.0, -5.0, 0.0};
+  grid.step_x = {0.47, 0.0, 0.0};
+  grid.step_y = {0.0, 0.5, 0.0};
+  BackprojectionConfig blocked;
+  blocked.kernel = BackprojectionKernel::Blocked;
+  BackprojectionConfig simd;
+  simd.kernel = BackprojectionKernel::Simd;
+  simd.pixel_block = 37;
+  const auto a = backproject(comp, grid, blocked);
+  const auto b = backproject(comp, grid, simd);
+  float peak = 0.0f;
+  for (const auto& v : a.data) {
+    peak = std::max(peak, std::abs(v));
+  }
+  float worst = 0.0f;
+  for (std::size_t i = 0; i < a.data.size(); ++i) {
+    worst = std::max(worst, std::abs(a.data[i] - b.data[i]));
+  }
+  INFO("kernel " << static_cast<int>(resolve_kernel(BackprojectionKernel::Simd)) << " worst "
+                 << worst << " peak " << peak);
+  CHECK(worst < 1e-5f * peak);
 }

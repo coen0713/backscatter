@@ -33,10 +33,15 @@ struct PixelGrid {
 enum class BackprojectionKernel {
   Naive,    // pixel-major: every pulse for one pixel, then the next pixel
   Blocked,  // tiles of pixels x blocks of pulses, to keep pulse data in cache
+  Simd,     // blocked, 4 pixels per step with AVX2/FMA (falls back to Blocked)
+  Auto,     // Simd when the CPU supports AVX2 + FMA, else Blocked
 };
 
+/// The kernel `Auto` (or `Simd`) resolves to on this machine.
+BackprojectionKernel resolve_kernel(BackprojectionKernel requested);
+
 struct BackprojectionConfig {
-  BackprojectionKernel kernel = BackprojectionKernel::Blocked;
+  BackprojectionKernel kernel = BackprojectionKernel::Auto;
   unsigned threads = 0;
   std::size_t pixel_block = 256;
   std::size_t pulse_block = 32;
@@ -45,8 +50,10 @@ struct BackprojectionConfig {
 /// Time-domain backprojection: for each pixel, sum the range-compressed
 /// echoes of every pulse at the pixel's range, phase-corrected by
 /// exp(+i 4 pi R / lambda). O(pixels x pulses). Every pixel accumulates its
-/// pulses in index order in both kernels, so results are bit-identical
-/// across kernels and thread counts.
+/// pulses in index order, so each kernel is bit-identical across thread
+/// counts, and Naive and Blocked are bit-identical to each other. Simd uses a
+/// polynomial sincos and float interpolation in a different order; it agrees
+/// with Blocked to ~1e-6 relative.
 Image<std::complex<float>> backproject(const CompressedData& data, const PixelGrid& grid,
                                        const BackprojectionConfig& config = {});
 
