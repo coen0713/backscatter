@@ -177,3 +177,7 @@ This is high-frequency ray optics with approximate, documented scattering, not a
 full-wave electromagnetic solver (no method of moments, no FDTD). It aims for
 correct geometry and plausible radiometry, not radiometric agreement with
 Sentinel-1 products. There is no GUI.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
