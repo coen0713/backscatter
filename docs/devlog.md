@@ -59,3 +59,31 @@ Scatterers now carry an entry point, an exit point and an internal path length, 
 multi-bounce paths synthesise with range `(|p − entry| + L + |p − exit|) / 2`.
 A unit test checks that the coherent dihedral focuses within 1 m of the wall foot,
 more than 15 dB above the open ground.
+
+## 2026-10-09: where the time goes (Phase 4)
+
+**Backprojection was bound by `std::polar`, not memory.** Cache blocking
+(pixel tiles x pulse blocks) gave 1.0-1.1x on one thread. The AVX2 kernel
+does four pixels per step: double-precision range, an FMA-exact reduction of
+the phase to [-pi/4, pi/4], Taylor sincos (error < 5e-12), and gathered
+complex<float> interpolation with `addsub`. That gives 6-8x on one thread and
+agrees with the scalar kernel to ~1e-7 relative. It is selected at runtime via
+CPUID, and compiled per function with `target("avx2,fma")` rather than per
+file, so no AVX2-encoded copy of a shared inline function can be picked by the
+linker for non-AVX2 callers.
+
+**Traversal is bound by memory latency, so wider nodes do not help.** The 8-wide
+AVX2 BVH is within run-to-run noise of the 4-wide SSE one. Counting work per ray
+on the 2.1M-triangle terrain explains it: 22 node visits and 2.2 triangle tests
+per ray. At ~5.5 Mrays/s (coherent order) that is ~180 ns per ray, roughly 8 ns
+per node visit, which is consistent with frequent cache misses into a 64 MB tree
+rather than with arithmetic cost; random order (1.4 Mrays/s) is ~4x slower again.
+(Not yet confirmed with hardware counters.) Larger SAH leaves were tried (intersection cost 0.25-1.0, up to
+8 triangles per leaf) and were slower. The levers left are memory-side:
+compressed or quantised nodes, treelet layouts, or ray packets/streams.
+
+**Benchmarking on a hybrid CPU.** On the i9-13900H, single-thread results move
+by about +-10% between runs depending on whether the thread lands on a P-core or
+an E-core, and a run that overlapped other load showed 40% thread efficiency
+instead of 88%. Benchmark numbers in the docs come from an idle machine on AC
+power, and comparisons within ~10% are reported as ties.

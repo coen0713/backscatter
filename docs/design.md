@@ -29,11 +29,14 @@ term. Copernicus DEM heights are geoid (EGM2008) heights; `data/fetch_dem.py
   triangles. An object-median builder is kept as a baseline. Beyond depth 96 the
   builder switches to balanced splits, which bounds the depth (and so the fixed
   traversal stack) for any input.
-* **4-wide BVH** (`geometry/bvh4.cpp`). Collapsed from the binary SAH tree by
-  repeatedly opening the child with the largest surface area. Child boxes are
-  stored lane-wise, so a single SSE slab test checks all four. Hit children are
-  pushed far-to-near so the nearest is popped first. There is a scalar fallback
-  for non-x86 targets.
+* **Wide BVHs** (`geometry/wide_bvh.cpp`, `WideBvh<4>` and `WideBvh<8>`).
+  Collapsed from the binary SAH tree by repeatedly opening the child with the
+  largest surface area. Child boxes are stored lane-wise, so a single SIMD slab
+  test checks all of them: SSE for 4-wide, AVX2 for 8-wide (chosen at run time
+  from CPUID, with a scalar fallback). Hit children are pushed far-to-near so the
+  nearest is popped first. Both widths perform about the same, because traversal
+  is memory-latency bound (see `docs/devlog.md`); the scene uses the 4-wide tree,
+  which needs nothing beyond SSE2.
 * **Watertight intersection** (Woop, Benthin & Wald 2013). SAR looks at terrain at
   grazing angles, where ordinary Möller–Trumbore leaks through shared edges.
   The algorithm only works if `a*b - c*d` rounds both products separately: with FMA
@@ -109,8 +112,11 @@ polarisation is a scalar choice of Fresnel coefficient (no depolarisation).
 5. **Backprojection.** For every pixel (any 3-D grid; the CLI drapes it on the
    scene surface), sum the compressed samples of all pulses at the pixel's range,
    phase-corrected by `e^{+i4πR/λ}`. Ranges and phases are in double precision.
-   There are two kernels, pixel-major and cache-blocked (pixel tiles × pulse blocks). Each pixel
-   accumulates pulses in index order in both, so they agree bit for bit.
+   Kernels: pixel-major and cache-blocked (bit-identical to each other), and an
+   AVX2/FMA kernel (four pixels per step, polynomial sincos after an FMA-exact
+   phase reduction) that agrees with them to ~1e-7 relative and is used
+   automatically when the CPU supports it. Each pixel always accumulates pulses
+   in index order, so every kernel is bit-identical across thread counts.
 
 **Approximations:** no range spreading loss (R⁻⁴) or elevation antenna pattern;
 the stop-and-hop approximation (no motion during a pulse); visibility is
