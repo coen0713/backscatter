@@ -97,8 +97,11 @@ jobs:
       - name: Test
         run: pytest -v python/tests
       - name: Validation pipeline unit tests
+        shell: bash
         run: |
-          pip install rasterio
+          # Binary wheels only: without one (some macOS runners) the SNAP-loader
+          # tests skip themselves rather than building GDAL from source.
+          pip install --only-binary=:all: rasterio || echo "no rasterio wheel here"
           pytest -v validation/tests
 
   bench:

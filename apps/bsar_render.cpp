@@ -324,7 +324,7 @@ int main(int argc, char** argv) try {
           if (!dem.valid(i, j)) {
             p = {0.0, 0.0, std::numeric_limits<double>::quiet_NaN()};
           } else if (dem.geographic) {
-            p = frame->geodetic_to_enu({y, x, dem.at(i, j)});
+            p = frame.value().geodetic_to_enu({y, x, dem.at(i, j)});  // set for geographic DEMs
           } else {
             p = {x, y, dem.at(i, j)};
           }
