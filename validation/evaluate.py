@@ -155,7 +155,8 @@ def run(args: argparse.Namespace) -> int:
         orbit = fetch_orbit(args.mission, datetime.fromisoformat(utc), ROOT / "data" / "raw")
         results = []
         for tile in tiles:
-            sim = pipeline.simulate_tile(tile, orbit, utc, render, args.out / direction / tile.name)
+            sim = pipeline.simulate_tile(tile, orbit, utc, render, args.out / direction / tile.name,
+                                         material_table=args.table)
             ref = load_snap_reference(snap, sim.grid, args.beta0_band, args.mask_band,
                                       args.layover_bit, args.shadow_bit)
             results.append(pipeline.compare(sim, **ref))
@@ -215,6 +216,8 @@ def main() -> int:
     r.add_argument("--mask-band", default="layover_shadow_mask")
     r.add_argument("--layover-bit", type=int, default=1)
     r.add_argument("--shadow-bit", type=int, default=2)
+    r.add_argument("--table", type=Path, default=pipeline.MATERIAL_TABLE,
+                   help="material table (use the fitted one for the held-out evaluation)")
     r.add_argument("--build", type=Path, default=ROOT / "build" / "release")
     r.add_argument("--out", type=Path, required=True)
     args = p.parse_args()

@@ -17,7 +17,8 @@ is marked `REGISTERED`.
 | `pipeline.py` | `simulate_tile`: DEM crop with a 0.05° margin (outside terrain can shadow or lay over into the tile) → `bsar_render --geocode` with the real orbit and per-class materials → products on the tile's UTM grid. `compare`: every metric for one tile |
 | `metrics.py` | Pure NumPy: IoU, 1-cell-tolerant F1, AUC (Mann–Whitney, ties averaged), 90 m block means, per-class Pearson r, phase-correlation offset |
 | `evaluate.py` | `region-dem` (the ellipsoidal DEM for SNAP) and `run` (all tiles of a set vs. SNAP outputs, pooled as pre-registered, with pass/fail verdicts) |
-| `dry_run.py` | End to end on calibration tiles with synthetic references whose answers are known |
+| `fit.py` | Per-class `k`, `n` fit on calibration tiles: single-bounce basis renders, multi-bounce part re-rendered with the current table, interior 90 m blocks, median-absolute-dB objective; writes `materials_fitted.txt` |
+| `dry_run.py` | End to end on calibration tiles with synthetic references whose answers are known, including a parameter-recovery check of the fit |
 | `materials_worldcover.txt` | WorldCover class → material (starting values; only `k` and `n` may be refitted, on calibration tiles) |
 | `snap/s1_grd_beta0_tc.xml` | SNAP graph for the real-data side (orbit, noise removal, β⁰, terrain correction + layover/shadow mask) |
 
@@ -37,10 +38,16 @@ python -m validation.dry_run --build build/release
 
 # Real data (after SNAP has processed each scene with validation/snap/s1_grd_beta0_tc.xml)
 python -m validation.evaluate region-dem --out build/validation/region_dem.tif
+python -m validation.fit \
+    --asc snap_asc.tif --asc-time 2024-08-14T17:15:51 \
+    --desc snap_desc.tif --desc-time 2024-08-18T05:35:49 \
+    --build build/release --out build/validation/fit   # writes materials_fitted.txt
 python -m validation.evaluate run --set calibration \
     --asc snap_asc.tif --asc-time 2024-08-14T17:15:51 \
     --desc snap_desc.tif --desc-time 2024-08-18T05:35:49 \
+    --table build/validation/fit/materials_fitted.txt \
     --build build/release --out build/validation/calibration
+# After registration: the same with --set held-out (refused before that).
 ```
 
 ## Status
@@ -53,7 +60,7 @@ python -m validation.evaluate run --set calibration \
 | Metrics, pooling, SNAP-format loader | Working; unit tests in `validation/tests/`, plus identity and shift checks in the dry run |
 | Dry run | Passes; report in [`docs/validation_dry_run.md`](../docs/validation_dry_run.md), and on every CI run |
 | SNAP graph | **Written but never run.** To confirm with one real scene over calibration tiles: output band names (`Beta0_VV`, `layover_shadow_mask` expected) and mask encoding (bit 1 = layover, bit 2 = shadow expected); `evaluate run` takes both as options |
-| Per-class `k`, `n` fitting | Not built yet; needs real calibration data |
+| Per-class `k`, `n` fitting | Built (`fit.py`); recovers known parameters for forest, grassland, bare rock and water from a synthetic two-bounce image with speckle (dry run). Needs real calibration data for the actual fit |
 | Real Sentinel-1 data | Needs a Copernicus Data Space account (not automated) |
 
 ## Dry-run quicklooks

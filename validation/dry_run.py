@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import replace
 import sys
 import time
 from datetime import datetime
@@ -33,7 +34,7 @@ from provenance import exe, header  # noqa: E402
 
 import rasterio  # noqa: E402
 
-from validation import evaluate, metrics, pipeline, regions  # noqa: E402
+from validation import evaluate, fit, metrics, pipeline, regions  # noqa: E402
 from validation.quicklook import overlay, write_png  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -46,6 +47,53 @@ DEFAULT_PASSES = {
 }
 # Lauterbrunnen / Jungfrau calibration block (4, 3): the steepest terrain in the region.
 DEFAULT_TILES = ["N46.60_E007.80", "N46.60_E007.90", "N46.70_E007.80", "N46.70_E007.90"]
+# The fit check adds the calibration tile richest in interior bare-rock blocks
+# (Aletsch area), so the class with the R1 threshold is exercised too.
+FIT_TILES = DEFAULT_TILES + ["N46.40_E008.00"]
+
+
+# Parameter-recovery check for the fit: these classes get different (k, n) in
+# a "truth" table; the rest keep their starting values (and must stay put).
+FIT_TRUTH = {10: (0.30, 0.4), 30: (0.20, 1.3), 60: (0.07, 2.4)}
+
+
+def fit_recovery(tiles: list[regions.Tile], render: Path, work: Path,
+                 rng: np.random.Generator) -> tuple[list[str], bool]:
+    base = fit.read_table(pipeline.MATERIAL_TABLE)
+    truth = [replace(e, k=FIT_TRUTH[e.code][0], n=FIT_TRUTH[e.code][1]) if e.code in FIT_TRUTH
+             else e for e in base]
+    truth_table = work / "fit_truth.txt"
+    work.mkdir(parents=True, exist_ok=True)
+    fit.write_table(truth_table, truth, "dry run: truth for the parameter-recovery check")
+    contexts = []
+    for direction, utc in DEFAULT_PASSES.items():
+        orbit = fetch_orbit("S1A", datetime.fromisoformat(utc), ROOT / "data" / "raw")
+        for tile in tiles:
+            prep = pipeline.prepare_tile(tile, work / direction / tile.name)
+            basis = fit.render_basis(prep, orbit, utc, render, base)
+            # The "real" image: full 2-bounce render of the truth table.
+            real = pipeline.render_tile(prep, orbit, utc, render, name="fit_truth",
+                                        material_table=truth_table, bounces=2)
+            speckled = real.beta0 * rng.gamma(4.0, 0.25, real.beta0.shape)  # 4-look cells
+            contexts.append(fit.FitContext(prep, orbit, utc, basis, speckled, real.valid))
+    _, report, _ = fit.run_fit(contexts, base, render)
+    by_code = {e.code: e for e in truth}
+    ok = True
+    lines = ["| Class | Blocks | Truth k / n | Start k / n | Fitted k / n | Recovered? |",
+             "|---|---|---|---|---|---|"]
+    for code, r in sorted(report.items()):
+        t = by_code[code]
+        start = next(e for e in base if e.code == code)
+        if r.get("kept_start"):
+            lines.append(f"| {code} {r['name']} | {r['blocks']} | {t.k:.3g} / {t.n:.2f} | "
+                         f"{start.k:.3g} / {start.n:.2f} | kept (too few blocks) | n/a |")
+            continue
+        good = abs(r["n"] - t.n) <= 0.15 and abs(r["k"] / t.k - 1.0) <= 0.10
+        ok = ok and good
+        lines.append(f"| {code} {r['name']} | {r['blocks']} | {t.k:.3g} / {t.n:.2f} | "
+                     f"{start.k:.3g} / {start.n:.2f} | {r['k']:.3g} / {r['n']:.2f} | "
+                     f"{'yes' if good else '**no**'} |")
+    return lines, ok
 
 
 def tile_by_name(name: str) -> regions.Tile:
@@ -79,6 +127,8 @@ def main() -> int:
     p.add_argument("--work", type=Path, default=ROOT / "build" / "validation_dry_run")
     p.add_argument("--tiles", nargs="*", default=DEFAULT_TILES)
     p.add_argument("--mission", default="S1A")
+    p.add_argument("--skip-fit", action="store_true", help="skip the parameter-recovery stage")
+    p.add_argument("--fit-tiles", nargs="*", default=FIT_TILES)
     args = p.parse_args()
 
     render = exe(args.build, "apps", "bsar_render")
@@ -201,6 +251,20 @@ def main() -> int:
                      f"{fmt(pp['G1_layover_iou'])} / {fmt(pp['G1_layover_f1'])} | "
                      f"{fmt(pp['G2_shadow_iou'])} / {fmt(pp['G2_shadow_f1'])} | "
                      f"{fmt(pp['G3_shadow_auc'])} | {fmt(tuple(map(float, pp['L1_median_offset_px'])))} |")
+    if not args.skip_fit:
+        t_fit = time.time()
+        fit_tiles = [tile_by_name(n) for n in args.fit_tiles]
+        fit_lines, fit_ok = fit_recovery(fit_tiles, render, args.work / "fit", rng)
+        ok = ok and fit_ok
+        lines += ["", "## Fitting: parameter recovery\n",
+                  "A synthetic \"real\" image rendered from a truth table (three classes "
+                  "changed, 4-look speckle per 30 m cell) is fitted from the starting table with "
+                  "`validation.fit` (single-bounce basis plus re-rendered multi-bounce part, "
+                  "interior 90 m blocks without layover or "
+                  "shadow, median-absolute-dB objective). Recovered means |n - n_true| <= 0.15 "
+                  "and k within 10%.\n"]
+        lines += fit_lines
+        lines.append(f"\nFit stage: {time.time() - t_fit:.0f} s.")
     lines += ["", f"Self-consistency checks: **{'PASS' if ok else 'FAIL'}**. "
               f"Total time {time.time() - t_start:.0f} s.", ""]
     report = args.work / "report.md"

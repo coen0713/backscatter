@@ -128,3 +128,34 @@ the test now asserts that passive layover explicitly.
 **Materials matter even for a geometry test.** The first quicklooks showed lakes
 as bright as meadows because the DEM got one material. The renderer now takes a
 WorldCover class grid and a class -> material table.
+
+## 2026-10-10: the per-class fit, and two versions that failed their own test
+
+The fit is tested by parameter recovery: render a synthetic "real" image from a
+truth table (three classes changed, 4-look speckle), fit from the starting
+table, and require the truth back (|dn| <= 0.15, k within 10%).
+
+**Version 1** predicted a block as `S + k F_n` from full two-bounce renders,
+on blocks with 7 of 9 cells in the class. Forest and grassland came back, but
+bare rock's k was 17% high, concrete 28% high, and water's n was 2.61 instead
+of 2.0, although water and concrete were *unchanged* in the truth table. Two
+bright forest cells in a shoreline block, or one cell of resampling bleed at a
+class edge, dominate a dark class.
+
+**Version 2** used interior blocks only (the class on all 9 cells and a 1-cell
+ring). Contamination gone, but water still came back at n = 2.30. Rendering
+the same experiment single-bounce recovered water exactly (k = 0.00300,
+n = 2.00), and with double bounce 19% of the lake's signal was multi-bounce:
+sensor -> water -> cliff -> sensor paths land at lake ranges but scale with the
+cliff's k, which the model was crediting to water.
+
+**Version 3** (current) attributes only single bounce to the block's class:
+block = S1 + k D1(n) + M, with M (multi-bounce) rendered from the current table,
+held fixed, and re-rendered after each of two fit rounds. All four classes with
+enough blocks are recovered (forest 0.294/0.39 for 0.30/0.4, grassland
+0.197/1.30 for 0.20/1.3, bare rock 0.0718/2.49 for 0.07/2.4, water 0.003/1.94
+for 0.003/2.0).
+
+Also changed: 90 m blocks now average linear power and then convert to dB
+(multilooking) everywhere, instead of averaging dB values; renders are skipped
+when the same command already completed, which makes long runs resumable.

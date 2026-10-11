@@ -63,10 +63,21 @@ class TileProducts:
     info: dict = field(default_factory=dict)
 
 
-def simulate_tile(tile: regions.Tile, orbit: Path, utc: str, render: Path, work: Path,
-                  range_spacing: float = 10.0, azimuth_spacing: float = 10.0,
-                  bounces: int = 2, threads: int = 0,
-                  material_table: Path = MATERIAL_TABLE) -> TileProducts:
+@dataclass
+class PreparedTile:
+    """Inputs for rendering one tile, independent of orbit and materials."""
+
+    tile: regions.Tile
+    work: Path
+    dem_asc: Path
+    classes_asc: Path
+    grid: prepare.Grid  # the tile's UTM 30 m grid
+    dem: np.ndarray     # ellipsoidal heights on `grid`
+    worldcover: np.ndarray  # class codes on `grid`
+
+
+def prepare_tile(tile: regions.Tile, work: Path) -> PreparedTile:
+    """DEM crop with margin, class grid on the DEM grid, and the tile's UTM grid."""
     check_allowed(tile)
     work.mkdir(parents=True, exist_ok=True)
     w, s, e, n = tile.bounds
@@ -76,31 +87,55 @@ def simulate_tile(tile: regions.Tile, orbit: Path, utc: str, render: Path, work:
     prepare.write_asc(dem_asc, heights, dem_grid)
     classes_asc = work / "classes.asc"
     prepare.write_asc(classes_asc, prepare.worldcover(dem_grid).astype(np.float64), dem_grid)
+    grid = prepare.utm_grid(tile.bounds)
+    dem_utm = prepare.resample(heights, dem_grid, grid, Resampling.bilinear, prepare.NODATA)
+    return PreparedTile(tile, work, dem_asc, classes_asc, grid, dem_utm, prepare.worldcover(grid))
 
-    prefix = work / "sim"
-    cmd = [str(render), "--scene", f"dem:{dem_asc}", "--geographic", "--classes", str(classes_asc),
-           "--material-table", str(material_table), "--orbit", str(orbit),
+
+def render_tile(prep: PreparedTile, orbit: Path, utc: str, render: Path, name: str = "sim",
+                material_table: Path = MATERIAL_TABLE, range_spacing: float = 10.0,
+                azimuth_spacing: float = 10.0, bounces: int = 2,
+                threads: int = 0) -> TileProducts:
+    """bsar_render with the real orbit and a material table, geocoded and
+    resampled to the tile's UTM grid. `name` keeps several renders of one
+    tile (e.g. the fitting basis) apart."""
+    check_allowed(prep.tile)
+    prefix = prep.work / name
+    cmd = [str(render), "--scene", f"dem:{prep.dem_asc}", "--geographic", "--classes",
+           str(prep.classes_asc), "--material-table", str(material_table), "--orbit", str(orbit),
            "--time", utc, "--range-spacing", str(range_spacing), "--azimuth-spacing",
            str(azimuth_spacing), "--bounces", str(bounces), "--threads", str(threads),
            "--geocode", "--out", str(prefix)]
-    run = subprocess.run(cmd, capture_output=True, text=True)
-    (work / "render.log").write_text(run.stdout + run.stderr)
-    if run.returncode != 0:
-        raise RuntimeError(f"bsar_render failed for {tile.name}:\n{run.stderr}")
+    # Resumable: skip the render if this exact command already completed (the
+    # stamp records the command and the table's contents).
+    stamp = prep.work / f"{name}.done"
+    signature = " ".join(cmd) + "\n" + Path(material_table).read_text()
+    log = prep.work / f"{name}.log"
+    if not (stamp.exists() and stamp.read_text() == signature and log.exists()):
+        run = subprocess.run(cmd, capture_output=True, text=True)
+        log.write_text(run.stdout + run.stderr)
+        if run.returncode != 0:
+            raise RuntimeError(f"bsar_render failed for {prep.tile.name}:\n{run.stderr}")
+        stamp.write_text(signature)
 
-    grid = prepare.utm_grid(tile.bounds)
     out = {}
-    for name, resampling in (("beta0", Resampling.bilinear), ("layover", Resampling.nearest),
-                             ("shadow", Resampling.nearest), ("valid", Resampling.nearest)):
-        values, src_grid, nodata = prepare.read_raster(Path(f"{prefix}_geo_{name}.asc"))
-        out[name] = prepare.resample(values, src_grid, grid, resampling, nodata)
-    dem_utm = prepare.resample(heights, dem_grid, grid, Resampling.bilinear, prepare.NODATA)
-    valid = (out["valid"] > 0.5) & (out["beta0"] != prepare.NODATA) & (dem_utm != prepare.NODATA)
+    for product, resampling in (("beta0", Resampling.bilinear), ("layover", Resampling.nearest),
+                                ("shadow", Resampling.nearest), ("valid", Resampling.nearest)):
+        values, src_grid, nodata = prepare.read_raster(Path(f"{prefix}_geo_{product}.asc"))
+        out[product] = prepare.resample(values, src_grid, prep.grid, resampling, nodata)
+    valid = ((out["valid"] > 0.5) & (out["beta0"] != prepare.NODATA) &
+             (prep.dem != prepare.NODATA))
     return TileProducts(
-        tile=tile, grid=grid, beta0=np.where(valid, out["beta0"], 0.0),
+        tile=prep.tile, grid=prep.grid, beta0=np.where(valid, out["beta0"], 0.0),
         layover=(out["layover"] > 0.5) & valid, shadow=(out["shadow"] > 0.5) & valid,
-        valid=valid, dem=dem_utm, worldcover=prepare.worldcover(grid),
-        info={"render_log": run.stdout.strip().splitlines()})
+        valid=valid, dem=prep.dem, worldcover=prep.worldcover,
+        info={"render_log": log.read_text().strip().splitlines()})
+
+
+def simulate_tile(tile: regions.Tile, orbit: Path, utc: str, render: Path, work: Path,
+                  material_table: Path = MATERIAL_TABLE, **kwargs) -> TileProducts:
+    return render_tile(prepare_tile(tile, work), orbit, utc, render,
+                       material_table=material_table, **kwargs)
 
 
 def tile_exclusions(sim: TileProducts, ref_valid: np.ndarray) -> list[str]:
@@ -142,8 +177,11 @@ def compare(sim: TileProducts, ref_beta0: np.ndarray, ref_layover: np.ndarray,
     # with no predicted shadow.
     real_db = metrics.to_db(ref_beta0)
     sim_db = metrics.to_db(sim.beta0)
-    real_blk, ok = metrics.block_reduce(real_db, valid, BLOCK)
-    sim_blk, _ = metrics.block_reduce(sim_db, valid, BLOCK)
+    # 90 m blocks: average linear power (multilooking), then convert to dB.
+    real_lin, ok = metrics.block_reduce(ref_beta0, valid, BLOCK)
+    sim_lin, _ = metrics.block_reduce(sim.beta0, valid, BLOCK)
+    real_blk = metrics.to_db(real_lin)
+    sim_blk = metrics.to_db(sim_lin)
     shadow_frac = metrics.block_fraction(sim.shadow, valid, BLOCK)
     pos = real_blk[ok & (shadow_frac >= 0.5)]
     neg = real_blk[ok & (shadow_frac == 0.0)]

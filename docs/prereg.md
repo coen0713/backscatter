@@ -81,7 +81,7 @@ descending reported separately), over held-out tiles only.
 | G1 | Layover agreement vs. SNAP | Our layover mask geocoded to the grid vs. SNAP Range-Doppler Terrain Correction "layover-shadow mask" (layover bit), same DEM and orbit, pooled over mountainous held-out tiles. **Thresholded on the 1-cell-tolerant F1** (a cell counts as matched if the other mask has a cell within 30 m); strict IoU is reported alongside | F1 ≥ 0.60 | Two independent implementations of the same geometry. Tolerant F1 rather than IoU: in the dry run, a 1-cell (30 m) shift alone, which L1 accepts, dropped strict layover IoU to 0.60–0.85 and shadow IoU to 0.09–0.61, while F1 stayed ≥ 0.978 (`docs/validation_dry_run.md`). SNAP's mask definition (e.g. whether passive layover is included) may differ from ours; differences will be analysed, not tuned away |
 | G2 | Shadow agreement vs. SNAP | Same, shadow bit | F1 ≥ 0.60 | As above |
 | G3 | Shadow vs. reality | AUC of real β⁰ (dB, 90 m blocks) for separating our predicted-shadow blocks (≥ 50% of cells in shadow) from blocks with **no** predicted shadow cell (partly shadowed blocks are left out); lower β⁰ = shadow | ≥ 0.85 | Tests the masks against the actual image, not another model: radar shadow sits at the noise floor (IW NESZ ≈ −22 dB) |
-| R1 | Radiometry, bare rock / sparse vegetation | Pearson r of simulated vs. real β⁰ (dB), 90 m blocks (≈ 81 looks, so speckle is negligible) that are class-pure (≥ 7 of 9 cells of the class), WorldCover 60, pooled over held-out tiles | ≥ 0.50 | Terrain-dominated surface scattering, which the model is built for |
+| R1 | Radiometry, bare rock / sparse vegetation | Pearson r of simulated vs. real β⁰ in dB of the 90 m block mean of linear β⁰ (multilooking ≈ 81 looks, so speckle is negligible), blocks that are class-pure (≥ 7 of 9 cells of the class), WorldCover 60, pooled over held-out tiles | ≥ 0.50 | Terrain-dominated surface scattering, which the model is built for |
 | R2 | Radiometry, grassland | Same, WorldCover 30 | reported | Prediction: r between 0.3 and 0.6 (surface scattering plus some volume) |
 | R3 | Radiometry, tree cover | Same, WorldCover 10 | reported | **Predicted to fail:** r < 0.3, because the model has no volume scattering. Reported in its own section, never averaged into a headline |
 | L1 | Geolocation | Sub-pixel offset of real vs. simulated β⁰ (dB, 30 m cells, Hann-windowed phase correlation with parabolic peak fit) per held-out tile; median over tiles, east and north separately | ≤ 1 pixel (30 m) each | Orbit and DEM errors are far below this; a larger offset means a timing or datum bug |
@@ -113,7 +113,25 @@ no-data.
   coefficient `k` and exponent `n` of `FacetScatteringModel`. They are fitted
   once, by minimising the median absolute dB error over calibration-tile 90 m
   blocks, and the fitted values are recorded below before any held-out tile is
-  rendered.
+  rendered. Procedure (`python -m validation.fit`, details in its docstring):
+  * Blocks: interior blocks only (the class on all 9 cells and on a 1-cell ring
+    around them), all cells valid, no layover or shadow cell; snow and ice
+    excluded; both passes and all calibration tiles pooled. Classes with fewer
+    than 100 such blocks keep their starting values.
+  * Model: block = S1 + k · D1(n) + M, where S1 and D1(n) are single-bounce
+    renders (diffuse off; k = 1 at exponent n on a 0.5 grid from 0 to 3,
+    log-interpolated between nodes) attributed to the block's own class, and M
+    is the multi-bounce part rendered with the current table and held fixed.
+    Two rounds: fit, re-render M with the fitted table, fit again.
+  * Search: for each n (0.05 steps, then golden-section), k by a log-spaced scan
+    and golden-section refinement.
+  * Evidence the procedure recovers known parameters: the dry run fits a
+    synthetic two-bounce "real" image with 4-look speckle from a truth table
+    and recovers forest, grassland, bare rock and water within |Δn| ≤ 0.15 and
+    10% in k (`docs/validation_dry_run.md`). Two earlier versions failed that
+    check and were changed before registration: 7-of-9 block purity let bright
+    neighbours bias dark classes, and attributing multi-bounce signal to the
+    block's own class biased water (lake → cliff → sensor paths).
 * **Never tuned:** permittivities and RMS slopes (literature values), geometry
   code, orbit handling, the geocoding, the thresholds above, the split.
 * **Bug fixes after registration:** allowed only if the bug is demonstrated on

@@ -2,7 +2,9 @@
 #
 # C-band (5.4 GHz), VV. These are STARTING values: per docs/prereg.md section 5,
 # only k (diffuse coefficient) and n (diffuse exponent) may be refitted, on
-# calibration tiles only. Permittivities and RMS slopes stay fixed.
+# calibration tiles only (python -m validation.fit). Permittivities and RMS
+# slopes stay fixed. Every entry is "custom" so the fit can rewrite k and n;
+# 50, 80 and 90 carry the values of the concrete, water and wet_soil presets.
 #
 # sigma0_diffuse = k cos^n(theta). Targets at 35 deg incidence from the typical
 # C-band ranges in Ulaby & Long (2014) and Sentinel-1 land backscatter studies:
@@ -15,9 +17,9 @@
 20      custom  shrubland       5.0     -1.0    0.15   1.2   0.35
 30      custom  grassland       8.0     -1.5    0.12   1.5   0.25
 40      custom  cropland        8.0     -1.5    0.12   1.5   0.25
-50      preset  concrete
+50      custom  concrete        5.5     -0.6    0.06   1.5   0.10
 60      custom  bare_rock       6.0     -0.5    0.10   2.0   0.25
 70      custom  wet_snow_ice    1.8     -0.2    0.02   2.0   0.10
-80      preset  water
-90      preset  wet_soil
+80      custom  water           68.0    -21.0   0.003  2.0   0.05
+90      custom  wet_soil        15.0    -3.0    0.15   2.0   0.15
 100     custom  moss_lichen     5.0     -0.5    0.08   2.0   0.20
