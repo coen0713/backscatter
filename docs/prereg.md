@@ -1,61 +1,135 @@
-# Pre-registration: simulated vs. real Sentinel-1 (DRAFT, NOT YET REGISTERED)
+# Pre-registration: simulated vs. real Sentinel-1
 
-> **Status: draft template.** Fill in every `TODO`, then commit this file on its
-> own *before* rendering any real scene. The commit hash of that commit is the
-> registration. Afterwards, any change goes in the "Amendments" section with a
-> date and a reason; nothing above it is edited.
+> **Status: PROPOSAL, NOT YET REGISTERED.** Everything below is a concrete
+> proposal for review. To register: change anything you disagree with, set the
+> status line to `REGISTERED`, fill in the two "recorded at registration"
+> fields (scene IDs, pipeline commit), and commit this file on its own. That
+> commit's hash is the registration. From then on, changes go only in
+> "Amendments", with a date and a reason; nothing above it is edited.
+>
+> **Nothing in the held-out set may be rendered, downloaded for inspection, or
+> looked at before registration.** Building the pipeline on calibration tiles
+> first is allowed and expected (see section 6).
 
-## Question
+## 1. Questions
 
-Does the geometric mode reproduce the layover and shadow geometry of real
-Sentinel-1 IW acquisitions over mountainous terrain, and how well does the default
-scattering model track real backscatter per land-cover class?
+1. **Geometry (primary).** Do the layover and shadow masks from the geometric
+   mode agree with an independent implementation (ESA SNAP) on the same DEM and
+   orbit, and do they predict where the *real* image is dark (radar shadow)?
+2. **Radiometry (secondary).** After fitting the free parameters of the default
+   scattering model on calibration tiles, how well does simulated backscatter
+   track real backscatter per land-cover class on held-out tiles?
+3. **Geolocation (secondary).** Is the simulated image registered to the real
+   one to within a pixel?
 
-## Data
+## 2. Data
 
-* Sensor and product: Sentinel-1 IW GRD, VV, POEORB orbits.
-* Acquisitions: TODO (scene IDs, dates, ascending/descending).
-* DEM: Copernicus GLO-30, converted to WGS84 ellipsoidal heights.
-* Land cover: ESA WorldCover 2021.
-* Reference masks: ESA SNAP layover/shadow mask (Terrain-Flattening /
-  SAR-Simulation operator), same DEM and orbit. Software version: TODO.
+| Item | Choice | Why |
+|---|---|---|
+| Region | Bernese and Valais Alps, lon 7.0–9.0 E, lat 46.0–47.0 N (Copernicus DEM tiles N46E007, N46E008) | Strong relief (≈ 200 m at Lake Maggiore to 4,545 m at the Dom) makes layover and shadow common and large; good Sentinel-1 coverage from both orbit directions; the hillshade comparison already exercises this DEM |
+| Product | Sentinel-1A IW GRDH, VV polarisation | Standard, free, 10 m pixels; VV is the co-pol channel the model represents |
+| Orbit | POEORB precise orbit for each scene | ~5 cm accuracy; removes orbit error as an explanation |
+| Acquisitions | **Two** scenes: one ascending and one descending relative orbit, each covering the whole region | Opposite look directions put layover and shadow on opposite slopes, so each slope is tested in both roles |
+| Scene selection rule | For each direction: among acquisitions between 2024-07-15 and 2024-09-15 whose footprint covers the whole region, take the one closest to 2024-08-15; if the MeteoSwiss record shows fresh snow above 2,500 m within 3 days before it, take the next closest | Fixes the choice before looking at any image; late summer minimises snow cover, which changes radiometry (not geometry) |
+| Scene IDs | *Recorded at registration, by applying the rule above to the catalogue listing only (no image download).* | |
+| DEM | Copernicus GLO-30, converted to WGS84 ellipsoidal heights (`data/fetch_dem.py --ellipsoidal`), warped to UTM 32N at 30 m | Same DEM for simulation and for the reference; ellipsoidal heights to match the orbits |
+| Land cover | ESA WorldCover 2021, resampled to the 30 m grid by majority | Defines the per-class strata |
+| Buildings | None (the region is mostly rural; urban radiometry is out of scope here) | Keeps the test about terrain |
 
-## Tiles and split
+## 3. Tiles and split
 
-* Tile size: TODO (e.g. 0.1° × 0.1°).
-* Candidate region: TODO.
-* Split rule (fixed before rendering anything): TODO. A deterministic rule
-  such as "tile index parity", or a seeded shuffle with the seed recorded here.
-* Calibration tiles: TODO (list).
-* Held-out tiles: TODO (list).
-* Exclusion criteria, decided now: TODO (e.g. > 20% DEM voids, snow cover in
-  the acquisition month).
+* **Tiles:** 0.1° × 0.1° cells (≈ 7.7 km × 11 km) named by their south-west corner.
+  The region holds 200 tiles.
+* **Split unit:** 0.2° × 0.2° blocks of 2 × 2 tiles, so adjacent tiles that share
+  a mountain cannot fall on both sides of the split.
+* **Split rule:** `python scripts/make_split.py --seed 20261010`. Blocks are ordered
+  by SHA-256 of `"<seed>:<block>"` and assigned alternately, after forcing every
+  block that overlaps an area already used during development into calibration
+  (currently the hillshade comparison crop, lon 7.80–8.00, lat 46.50–46.62).
+  Result: 25 blocks (100 tiles) each:
 
-## Metrics and thresholds
+  **Calibration** (block south-west corners): 46.0N 7.0E, 46.2N 7.0E, 46.6N 7.0E,
+  46.8N 7.0E, 46.0N 7.2E, 46.4N 7.2E, 46.6N 7.2E, 46.8N 7.2E, 46.2N 7.4E, 46.4N 7.4E,
+  46.0N 7.6E, 46.2N 7.6E, 46.8N 7.6E, 46.4N 7.8E, 46.6N 7.8E, 46.2N 8.0E, 46.4N 8.0E,
+  46.2N 8.2E, 46.4N 8.2E, 46.6N 8.2E, 46.0N 8.4E, 46.4N 8.4E, 46.0N 8.6E, 46.4N 8.6E,
+  46.6N 8.8E
 
-| Metric | Computed on | Pass threshold | Rationale |
-|---|---|---|---|
-| Layover-mask IoU | held-out, mountainous tiles | TODO (e.g. ≥ 0.7) | TODO |
-| Shadow-mask IoU | same | TODO | TODO |
-| Pearson r of γ⁰ (dB), per WorldCover class | held-out tiles | TODO per class | TODO |
-| Median geolocation offset of bright point targets | held-out tiles | TODO (e.g. < 1 pixel) | TODO |
+  **Held-out** (block south-west corners): 46.4N 7.0E, 46.2N 7.2E, 46.0N 7.4E,
+  46.6N 7.4E, 46.8N 7.4E, 46.4N 7.6E, 46.6N 7.6E, 46.0N 7.8E, 46.2N 7.8E, 46.8N 7.8E,
+  46.0N 8.0E, 46.6N 8.0E, 46.8N 8.0E, 46.0N 8.2E, 46.8N 8.2E, 46.2N 8.4E, 46.6N 8.4E,
+  46.8N 8.4E, 46.2N 8.6E, 46.6N 8.6E, 46.8N 8.6E, 46.0N 8.8E, 46.2N 8.8E, 46.4N 8.8E,
+  46.8N 8.8E
 
-Masks are compared in ground geometry after terrain correction, on the same
-pixel grid. Per-class correlations require at least TODO pixels per class.
+* **Exclusions (decided now, applied per tile before any comparison):**
+  * more than 5% DEM no-data → excluded entirely;
+  * more than 50% WorldCover "permanent water" → excluded entirely (parts of lakes
+    Thun, Brienz and Lucerne, and the north end of Lake Maggiore);
+  * any part outside either scene's valid-data footprint → excluded entirely;
+  * for the geometry metrics only, tiles must be **mountainous**: relief
+    (max − min elevation) ≥ 1,000 m. Flat tiles have no layover or shadow to
+    test, so they would only inflate agreement;
+  * pixels of WorldCover "snow and ice" are excluded from the radiometry metric
+    only (glaciers are bright and wet-snow-dependent; geometry is unaffected).
 
-## What may be tuned, and on what
+## 4. Metrics, thresholds and predictions
 
-* May be tuned on calibration tiles only: material diffuse coefficients,
-  exponents, RMS slopes.
-* Never tuned: geometry code, orbit handling, thresholds above.
+All comparisons are made on the same UTM 32N 30 m grid, per scene (ascending and
+descending reported separately), over held-out tiles only.
 
-## Analysis plan
+| # | Metric | How | Pass threshold | Rationale |
+|---|---|---|---|---|
+| G1 | Layover IoU vs. SNAP | Our layover mask geocoded to the grid vs. SNAP Range-Doppler Terrain Correction "layover-shadow mask" (layover bit), same DEM and orbit, pooled over mountainous held-out tiles | ≥ 0.60 | Two independent implementations of the same geometry. Not 0.9+: the masks are thin features at 30 m, and SNAP's mask definition (e.g. whether passive layover is included) may differ from ours; differences will be analysed, not tuned away |
+| G2 | Shadow IoU vs. SNAP | Same, shadow bit | ≥ 0.60 | As above |
+| G3 | Shadow vs. reality | AUC of real β⁰ (dB, 90 m blocks) for separating our predicted-shadow blocks (≥ 50% shadow) from non-shadow blocks; lower β⁰ = shadow | ≥ 0.85 | Tests the masks against the actual image, not another model: radar shadow sits at the noise floor (IW NESZ ≈ −22 dB) |
+| R1 | Radiometry, bare rock / sparse vegetation | Pearson r of simulated vs. real β⁰ (dB), 90 m blocks (≈ 81 looks, so speckle is negligible), WorldCover 60 | ≥ 0.50 | Terrain-dominated surface scattering, which the model is built for |
+| R2 | Radiometry, grassland | Same, WorldCover 30 | reported | Prediction: r between 0.3 and 0.6 (surface scattering plus some volume) |
+| R3 | Radiometry, tree cover | Same, WorldCover 10 | reported | **Predicted to fail:** r < 0.3, because the model has no volume scattering. Reported in its own section, never averaged into a headline |
+| L1 | Geolocation | Sub-pixel offset of real vs. simulated β⁰ by phase correlation per held-out mountainous tile; median over tiles, east and north separately | ≤ 1 pixel (30 m) each | Orbit and DEM errors are far below this; a larger offset means a timing or datum bug |
 
-1. Render every calibration and held-out tile with the commit recorded at
-   registration.
-2. Fit the allowed parameters on calibration tiles only. Record the fitted values here.
-3. Compute all metrics on held-out tiles once. Report all of them, including failures.
-4. Report vegetation classes separately. They are expected to fail (no volume scattering).
+**Comparison quantity.** Both sides use β⁰ (radar brightness), not γ⁰. Terrain
+flattening would remove exactly the terrain effects being simulated. Real side
+(SNAP): Apply Orbit File → Thermal Noise Removal → Calibration (β⁰) →
+Range-Doppler Terrain Correction to the grid, no radiometric normalisation. Our
+side: geometric mode at 10 m slant range / 10 m azimuth spacing, then geocoded
+by solving zero-Doppler for every grid cell and sampling the slant-range image.
+
+## 5. What may be tuned, and on what
+
+* **Tunable, on calibration tiles only:** for each WorldCover class, the diffuse
+  coefficient `k` and exponent `n` of `FacetScatteringModel`. They are fitted
+  once, by minimising the median absolute dB error over calibration-tile 90 m
+  blocks, and the fitted values are recorded below before any held-out tile is
+  rendered.
+* **Never tuned:** permittivities and RMS slopes (literature values), geometry
+  code, orbit handling, the geocoding, the thresholds above, the split.
+* **Bug fixes after registration:** allowed only if the bug is demonstrated on
+  calibration tiles or synthetic tests. Each one is listed in Amendments with the
+  commit, and all held-out metrics are recomputed and reported both before and
+  after the fix.
+
+## 6. Procedure
+
+1. **Before registration** (allowed now): build the missing pipeline pieces using
+   calibration tiles only: geocoding of slant-range products to the UTM grid
+   (`bsar_eval geocode`), WorldCover stratification, the metric scripts, and a
+   SNAP graph (`.xml`) for the real-data chain. Dry-run end to end on calibration
+   tiles.
+2. **Register:** record the scene IDs (catalogue only) and the pipeline commit
+   hash below, set the status to `REGISTERED`, and commit.
+3. Fit the tunable parameters on calibration tiles; record them in this file
+   (as an amendment-free addition in section 8) and commit.
+4. Render and compute every held-out metric **once**, with the registered commit
+   plus the fitted parameters. Report every number, including failures, in
+   `docs/validation.md`, with the prediction from section 4 next to each result.
+
+## 7. Recorded at registration
+
+* Scene IDs (ascending, descending): *to fill*
+* Pipeline commit: *to fill*
+
+## 8. Fitted parameters
+
+*(Filled in at step 3, before any held-out rendering.)*
 
 ## Amendments
 
