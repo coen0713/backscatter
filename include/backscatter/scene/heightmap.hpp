@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <span>
 #include <vector>
 
 #include "backscatter/geometry/mesh.hpp"
@@ -34,6 +35,12 @@ struct Heightmap {
 /// ESRI ASCII grid (.asc), as written by `gdal_translate -of AAIGrid`.
 /// Set `geographic` for grids in degrees (e.g. Copernicus GLO-30 tiles).
 Heightmap load_esri_ascii(const std::filesystem::path& path, bool geographic);
+
+/// Write `values` (laid out like `like`: row-major, j northwards) as an ESRI
+/// ASCII grid with the same georeferencing as `like`, so GDAL tools can read
+/// products defined on a DEM's grid.
+void write_esri_ascii(const std::filesystem::path& path, const Heightmap& like,
+                      std::span<const float> values, float nodata);
 
 #ifdef BSAR_HAVE_GDAL
 /// Any GDAL-readable raster (GeoTIFF etc.), band 1. Geographic CRS detection

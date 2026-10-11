@@ -9,6 +9,8 @@
 #include "backscatter/eval/metrics.hpp"
 #include "backscatter/eval/theory_checks.hpp"
 #include "backscatter/image/io.hpp"
+#include "backscatter/sensor/orbit.hpp"
+#include "backscatter/sensor/passes.hpp"
 #include "backscatter/sensor/sar_geometry.hpp"
 
 #include "cli.hpp"
@@ -29,6 +31,10 @@ constexpr const char* kUsage = R"(usage: bsar_eval <command> [options]
                               amplitude input is squared to intensity unless
                               --intensity is given
   iou <a.npy> <b.npy>         intersection over union of two masks
+  passes --orbit EOF --lat D --lon D [--height M] [--max-range M]
+                              list the orbit's closest approaches to a point:
+                              zero-Doppler time, direction, look side, range,
+                              incidence (Sentinel-1 IW: right-looking, 30-46 deg)
 )";
 
 const char* mark(bool ok) { return ok ? "pass" : "**FAIL**"; }
@@ -174,6 +180,27 @@ int run_speckle(const cli::Args& args) {
   return 0;
 }
 
+int run_passes(const cli::Args& args) {
+  if (!args.has("orbit") || !args.has("lat") || !args.has("lon")) {
+    throw std::invalid_argument("passes needs --orbit, --lat and --lon");
+  }
+  const Orbit orbit = load_eof(args.str("orbit", ""));
+  const Geodetic target{args.num("lat", 0.0), args.num("lon", 0.0), args.num("height", 0.0)};
+  const double max_range = args.num("max-range", 1.5e6);
+  args.reject_unknown();
+  std::printf(
+      "| Zero-Doppler time (UTC) | Direction | Look | Slant range | Incidence | IW-like |\n");
+  std::printf("|---|---|---|---|---|---|\n");
+  for (const OrbitPass& p : find_passes(orbit, target, max_range)) {
+    const bool iw = p.side == LookSide::Right && p.incidence_deg >= 29.0 && p.incidence_deg <= 47.0;
+    std::printf("| %s | %s | %s | %.1f km | %.2f deg | %s |\n", format_utc(p.t).c_str(),
+                p.ascending ? "ascending" : "descending",
+                p.side == LookSide::Right ? "right" : "left", p.range * 1e-3, p.incidence_deg,
+                iw ? "yes" : "no");
+  }
+  return 0;
+}
+
 int run_iou(const cli::Args& args) {
   if (args.positional().size() != 3) {
     throw std::invalid_argument("iou needs two .npy files");
@@ -208,6 +235,9 @@ int main(int argc, char** argv) try {
   }
   if (cmd == "speckle") {
     return run_speckle(args);
+  }
+  if (cmd == "passes") {
+    return run_passes(args);
   }
   if (cmd == "iou") {
     return run_iou(args);

@@ -20,7 +20,8 @@ add_executable(
   test_geometric.cpp
   test_coherent.cpp
   test_eval.cpp
-  test_io.cpp)
+  test_io.cpp
+  test_geocode.cpp)
 target_link_libraries(bsar_tests PRIVATE backscatter::backscatter Catch2::Catch2WithMain)
 bsar_set_warnings(bsar_tests)
 

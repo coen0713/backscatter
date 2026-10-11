@@ -4,6 +4,8 @@ add_library(
   geometry/mesh.cpp
   geometry/bvh.cpp
   geometry/wide_bvh.cpp
+  image/geocode.cpp
+  sensor/passes.cpp
   scene/material.cpp
   scene/heightmap.cpp
   scene/buildings.cpp

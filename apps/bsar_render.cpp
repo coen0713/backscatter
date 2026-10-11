@@ -6,10 +6,12 @@
 #include <cstdio>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <string>
 
 #include "backscatter/image/backprojection.hpp"
+#include "backscatter/image/geocode.hpp"
 #include "backscatter/image/io.hpp"
 #include "backscatter/scene/buildings.hpp"
 #include "backscatter/scene/heightmap.hpp"
@@ -53,6 +55,9 @@ Rendering
   --rays-per-bin X        ray oversampling              [4]
   --bounces N             maximum bounces               [3]
   --pol HH|VV             polarisation                  [VV]
+  --geocode               geometric + DEM: also write beta0, layover, shadow and
+                          valid masks on the DEM's grid (_geo_*.asc, with the
+                          DEM's .prj copied alongside)
   --density D             coherent: scatterers per m^2  [airborne 4, spaceborne 0.2]
   --pixel M               coherent / hillshade: output pixel size [m]
   --sun-azimuth DEG       hillshade: sun azimuth, clockwise from north [315]
@@ -100,7 +105,7 @@ double seconds_since(std::chrono::steady_clock::time_point t0) {
 }  // namespace
 
 int main(int argc, char** argv) try {
-  const cli::Args args(argc, argv, {"geographic", "help"});
+  const cli::Args args(argc, argv, {"geographic", "geocode", "help"});
   if (args.has("help")) {
     std::cout << kUsage;
     return 0;
@@ -127,8 +132,10 @@ int main(int argc, char** argv) try {
   }
   const bool has_dem = scene_spec.rfind("dem:", 0) == 0;
   Vec2d projected_offset{0.0, 0.0};
+  std::filesystem::path dem_path;
   if (has_dem) {
     const std::filesystem::path path = scene_spec.substr(4);
+    dem_path = path;
     if (path.extension() == ".asc") {
       dem = load_esri_ascii(path, args.has("geographic"));
     } else {
@@ -246,6 +253,10 @@ int main(int argc, char** argv) try {
     cfg.max_bounces = static_cast<int>(args.num("bounces", 3));
     cfg.polarization = pol;
     cfg.threads = threads;
+    const bool do_geocode = args.has("geocode");
+    if (do_geocode && !has_dem) {
+      throw std::invalid_argument("--geocode needs a DEM scene (dem:PATH)");
+    }
     args.reject_unknown();
     const auto t_render = std::chrono::steady_clock::now();
     const GeometricImage img = render_geometric(scene, *trajectory, cfg);
@@ -272,6 +283,54 @@ int main(int argc, char** argv) try {
     std::printf("geometric %zu lines x %zu bins, %zu rays in %.2f s (%.2f Mrays/s primary)\n",
                 img.intensity.height, img.intensity.width, img.rays_traced, render_s,
                 static_cast<double>(img.rays_traced) / render_s * 1e-6);
+
+    if (do_geocode) {
+      // Products on the DEM's own grid (same georeferencing as the input).
+      std::vector<Vec3d> points(dem.nx * dem.ny);
+      for (std::size_t j = 0; j < dem.ny; ++j) {
+        for (std::size_t i = 0; i < dem.nx; ++i) {
+          const double x = dem.x0 + static_cast<double>(i) * dem.dx;
+          const double y = dem.y0 + static_cast<double>(j) * dem.dy;
+          Vec3d& p = points[j * dem.nx + i];
+          if (!dem.valid(i, j)) {
+            p = {0.0, 0.0, std::numeric_limits<double>::quiet_NaN()};
+          } else if (dem.geographic) {
+            p = frame->geodetic_to_enu({y, x, dem.at(i, j)});
+          } else {
+            p = {x, y, dem.at(i, j)};
+          }
+        }
+      }
+      const auto t_geo = std::chrono::steady_clock::now();
+      const GeocodedProducts geo =
+          geocode(img, *trajectory, scene, points, dem.nx, dem.ny, threads);
+      Heightmap grid = dem;  // georeferencing of the input file
+      grid.x0 += projected_offset.x;
+      grid.y0 += projected_offset.y;
+      constexpr float kNoData = -9999.0f;
+      auto as_float = [&](const auto& image, bool mask_invalid) {
+        std::vector<float> v(image.data.size());
+        for (std::size_t k = 0; k < v.size(); ++k) {
+          v[k] =
+              mask_invalid && geo.valid.data[k] == 0 ? kNoData : static_cast<float>(image.data[k]);
+        }
+        return v;
+      };
+      const std::filesystem::path prj = std::filesystem::path(dem_path).replace_extension(".prj");
+      for (const auto& [name, values] : {std::pair{"beta0", as_float(geo.beta0, true)},
+                                         std::pair{"layover", as_float(geo.layover, true)},
+                                         std::pair{"shadow", as_float(geo.shadow, true)},
+                                         std::pair{"valid", as_float(geo.valid, false)}}) {
+        const std::filesystem::path file = out.path(std::string("_geo_") + name + ".asc");
+        write_esri_ascii(file, grid, values, kNoData);
+        if (std::filesystem::exists(prj)) {
+          std::filesystem::copy_file(prj, std::filesystem::path(file).replace_extension(".prj"),
+                                     std::filesystem::copy_options::overwrite_existing);
+        }
+      }
+      std::printf("geocoded onto the DEM grid (%zu x %zu) in %.2f s\n", dem.nx, dem.ny,
+                  seconds_since(t_geo));
+    }
     return 0;
   }
 

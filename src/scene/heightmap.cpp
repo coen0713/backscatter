@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <fstream>
 #include <limits>
 #include <stdexcept>
@@ -112,6 +113,39 @@ Heightmap load_esri_ascii(const std::filesystem::path& path, bool geographic) {
                              " values, read " + std::to_string(k));
   }
   return hm;
+}
+
+void write_esri_ascii(const std::filesystem::path& path, const Heightmap& like,
+                      std::span<const float> values, float nodata) {
+  if (values.size() != like.nx * like.ny) {
+    throw std::invalid_argument("write_esri_ascii: values do not match the grid");
+  }
+  std::ofstream f(path);
+  if (!f) {
+    throw std::runtime_error("write_esri_ascii: cannot write " + path.string());
+  }
+  char buf[64];
+  auto put = [&](const char* fmt, double v) {
+    std::snprintf(buf, sizeof buf, fmt, v);
+    f << buf;
+  };
+  f << "ncols " << like.nx << "\nnrows " << like.ny << '\n';
+  put("xllcenter %.12g\n", like.x0);
+  put("yllcenter %.12g\n", like.y0);
+  if (like.dx == like.dy) {
+    put("cellsize %.12g\n", like.dx);
+  } else {
+    put("dx %.12g\n", like.dx);
+    put("dy %.12g\n", like.dy);
+  }
+  put("NODATA_value %.9g\n", static_cast<double>(nodata));
+  for (std::size_t r = 0; r < like.ny; ++r) {  // first row written is the northern one
+    const std::size_t j = like.ny - 1 - r;
+    for (std::size_t i = 0; i < like.nx; ++i) {
+      put(i == 0 ? "%.7g" : " %.7g", static_cast<double>(values[j * like.nx + i]));
+    }
+    f << '\n';
+  }
 }
 
 #ifdef BSAR_HAVE_GDAL
