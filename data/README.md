@@ -8,10 +8,12 @@ No data is checked in. These scripts fetch everything from public sources into
 | `fetch_dem.py` | Copernicus GLO-30 DEM, AWS Open Data | no |
 | `fetch_osm_buildings.py` | OpenStreetMap via the Overpass API | no |
 | `fetch_orbit.py` | Sentinel-1 POEORB precise orbits, ESA SNAP mirror | no |
+| `fetch_s1.py` | Sentinel-1 GRD scenes, Copernicus Data Space | **yes**: run it yourself; credentials come from `CDSE_USERNAME` / `CDSE_PASSWORD` or a hidden prompt and are never stored |
 
 Sentinel-1 GRD scenes for the real-data comparison (`docs/validation.md`,
 section 2) come from the [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/),
-which needs a free account. Download them by hand; nothing here automates logging in.
+which needs a free account. `fetch_s1.py` downloads them for you when *you* run it
+(`python -m validation.select_scenes --selected ...` picks the scenes first).
 
 DEM conversion uses the GDAL command-line tools. Without GDAL, any ESRI ASCII
 grid (`.asc`) works directly.

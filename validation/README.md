@@ -20,7 +20,9 @@ is marked `REGISTERED`.
 | `fit.py` | Per-class `k`, `n` fit on calibration tiles: single-bounce basis renders, multi-bounce part re-rendered with the current table, interior 90 m blocks, median-absolute-dB objective; writes `materials_fitted.txt` |
 | `dry_run.py` | End to end on calibration tiles with synthetic references whose answers are known, including a parameter-recovery check of the fit |
 | `materials_worldcover.txt` | WorldCover class → material (starting values; only `k` and `n` may be refitted, on calibration tiles) |
-| `snap/s1_grd_beta0_tc.xml` | SNAP graph for the real-data side (orbit, noise removal, β⁰, terrain correction + layover/shadow mask) |
+| `select_scenes.py` | Applies the pre-registered scene-selection rule to the public catalogue (metadata only, no account): datatakes, footprint coverage of the region, closest to 15 August |
+| `snap/s1_grd_beta0_tc.xml`, `snap/s1_grd_beta0_tc_2slices.xml` | SNAP graphs for the real-data side (orbit, noise removal, β⁰, terrain correction + layover/shadow mask); the second joins a two-slice acquisition first |
+| `../data/fetch_s1.py` | Downloads the selected products with **your** CDSE account; run it yourself (credentials from environment variables or a hidden prompt, never stored or printed) |
 
 C++ support added for this pipeline: `bsar_eval passes` (closest approaches of
 a real orbit to a point, with direction, look side and incidence), and
@@ -36,14 +38,21 @@ cmake --preset release && cmake --build --preset release
 # Dry run on calibration tiles (no Sentinel-1 imagery needed)
 python -m validation.dry_run --build build/release
 
-# Real data (after SNAP has processed each scene with validation/snap/s1_grd_beta0_tc.xml)
+# Real data
+python -m validation.select_scenes --selected build/validation/selected_scenes.json
+python data/fetch_s1.py --selected build/validation/selected_scenes.json   # you, with your account
 python -m validation.evaluate region-dem --out build/validation/region_dem.tif
+gpt validation/snap/s1_grd_beta0_tc.xml -Pinput=data/raw/<ascending>.zip \
+    -Pdem=build/validation/region_dem.tif -Poutput=build/validation/snap_asc.tif
+gpt validation/snap/s1_grd_beta0_tc_2slices.xml -Pinput1=data/raw/<desc 1>.zip \
+    -Pinput2=data/raw/<desc 2>.zip -Pdem=build/validation/region_dem.tif \
+    -Poutput=build/validation/snap_desc.tif
 python -m validation.fit \
-    --asc snap_asc.tif --asc-time 2024-08-14T17:15:51 \
+    --asc snap_asc.tif --asc-time 2024-08-19T17:24:01 \
     --desc snap_desc.tif --desc-time 2024-08-18T05:35:49 \
     --build build/release --out build/validation/fit   # writes materials_fitted.txt
 python -m validation.evaluate run --set calibration \
-    --asc snap_asc.tif --asc-time 2024-08-14T17:15:51 \
+    --asc snap_asc.tif --asc-time 2024-08-19T17:24:01 \
     --desc snap_desc.tif --desc-time 2024-08-18T05:35:49 \
     --table build/validation/fit/materials_fitted.txt \
     --build build/release --out build/validation/calibration
@@ -69,6 +78,6 @@ Tile N46.60 E7.90 (Lauterbrunnen), simulated beta0 on the UTM grid with layover
 tinted red and shadow blue. Opposite look directions put layover and shadow on
 opposite slopes.
 
-| Ascending, 2024-08-14 17:15 UTC (incidence ~33°) | Descending, 2024-08-18 05:35 UTC (~41°) |
+| Ascending, 2024-08-19 17:24 UTC (incidence ~42°) | Descending, 2024-08-18 05:35 UTC (~41°) |
 |---|---|
 | ![ascending](../docs/images/dryrun_asc_N46.60_E007.90.png) | ![descending](../docs/images/dryrun_desc_N46.60_E007.90.png) |

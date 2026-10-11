@@ -39,10 +39,11 @@ from validation.quicklook import overlay, write_png  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Real Sentinel-1A IW-like passes over the region (bsar_eval passes, POEORB),
-# the closest to 2024-08-15 in each direction. Orbit geometry only.
+# The selected Sentinel-1A acquisitions (validation.select_scenes); times are
+# the zero-Doppler times over the region centre (bsar_eval passes, POEORB).
+# Orbit geometry only; the dry run never reads imagery.
 DEFAULT_PASSES = {
-    "ascending": "2024-08-14T17:15:51",
+    "ascending": "2024-08-19T17:24:01",
     "descending": "2024-08-18T05:35:49",
 }
 # Lauterbrunnen / Jungfrau calibration block (4, 3): the steepest terrain in the region.

@@ -30,8 +30,8 @@
 | Product | Sentinel-1A IW GRDH, VV polarisation | Standard, free, 10 m pixels; VV is the co-pol channel the model represents |
 | Orbit | POEORB precise orbit for each scene | ~5 cm accuracy; removes orbit error as an explanation |
 | Acquisitions | **Two** scenes: one ascending and one descending relative orbit, each covering the whole region | Opposite look directions put layover and shadow on opposite slopes, so each slope is tested in both roles |
-| Scene selection rule | For each direction: among acquisitions between 2024-07-15 and 2024-09-15 whose footprint covers the whole region, take the one closest to 2024-08-15; if the MeteoSwiss record shows fresh snow above 2,500 m within 3 days before it, take the next closest | Fixes the choice before looking at any image; late summer minimises snow cover, which changes radiometry (not geometry) |
-| Scene IDs | *Recorded at registration, by applying the rule above to the catalogue listing only (no image download).* | |
+| Scene selection rule | For each direction: an *acquisition* is one datatake (all its GRD slices; footprint = union of slice footprints). Among acquisitions between 2024-07-15 and 2024-09-15 whose footprint covers **at least 95%** of the region, take the one closest to 2024-08-15; if the MeteoSwiss record shows fresh snow above 2,500 m within 3 days before it, take the next closest. Tiles outside a selected footprint are dropped by the exclusions in section 3. Implemented by `python -m validation.select_scenes` | Fixes the choice before looking at any image; late summer minimises snow cover, which changes radiometry (not geometry). The draft required full coverage; applying it to the catalogue showed no ascending acquisition in the window does (best 97.2%), so the threshold was set to 95% before registration and before any imagery was obtained |
+| Scene IDs | Section 7 | |
 | DEM | Copernicus GLO-30, converted to WGS84 ellipsoidal heights (`data/fetch_dem.py --ellipsoidal`), warped to UTM 32N at 30 m | Same DEM for simulation and for the reference; ellipsoidal heights to match the orbits |
 | Land cover | ESA WorldCover 2021, resampled to the 30 m grid by majority | Defines the per-class strata |
 | Buildings | None (the region is mostly rural; urban radiometry is out of scope here) | Keeps the test about terrain |
@@ -147,12 +147,13 @@ no-data.
    results in `docs/validation_dry_run.md`). Still to do before registering:
    run the SNAP graph on one real scene over **calibration tiles only** to
    confirm its output band names and mask encoding (the graph has not been run
-   yet), and look up the scene IDs.
-   *Candidate passes* from the precise orbits (`bsar_eval passes`, geometry only,
-   no imagery): S1A ascending 2024-08-14 17:15:51 UTC (incidence 32.9° at
-   46.5 N 8.0 E) and descending 2024-08-18 05:35:49 UTC (41.3°). The selection
-   rule in section 2 is still applied to the catalogue, which may differ (e.g.
-   if a pass was not acquired or does not cover the whole region).
+   yet), and do the snow check for the two selected scenes.
+   *Scenes selected* by `python -m validation.select_scenes` (public catalogue
+   metadata only, no imagery; see section 7). Their zero-Doppler times over
+   46.5 N 8.0 E from the precise orbits (`bsar_eval passes`) fall inside the
+   catalogue's slice times, an independent consistency check: ascending
+   2024-08-19 17:24:01 UTC (incidence 42.4°), descending 2024-08-18 05:35:49 UTC
+   (41.3°).
 2. **Register:** record the scene IDs (catalogue only) and the pipeline commit
    hash below, set the status to `REGISTERED`, and commit.
 3. Fit the tunable parameters on calibration tiles; record them in this file
@@ -163,7 +164,16 @@ no-data.
 
 ## 7. Recorded at registration
 
-* Scene IDs (ascending, descending): *to fill*
+* Scene IDs (from the selection rule applied to the catalogue on 2026-10-11;
+  `build/validation/selected_scenes.json`; snow check still to do):
+  * Ascending, relative orbit 88, datatake 06BD78, 97.2% of the region:
+    `S1A_IW_GRDH_1SDV_20240819T172348_20240819T172413_055285_06BD78_F48F`
+  * Descending, relative orbit 66, datatake 06BCAB, 99.96% of the region (two
+    slices, joined with `validation/snap/s1_grd_beta0_tc_2slices.xml`):
+    `S1A_IW_GRDH_1SDV_20240818T053519_20240818T053544_055263_06BCAB_4650`,
+    `S1A_IW_GRDH_1SDV_20240818T053544_20240818T053609_055263_06BCAB_4683`
+  * Fallbacks if the snow check fails (next closest eligible): ascending
+    2024-08-07 (06B719), descending 2024-08-06 (06B64D).
 * Pipeline commit: *to fill*
 
 ## 8. Fitted parameters

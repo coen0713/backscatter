@@ -1,0 +1,103 @@
+<!--
+  Two-slice variant of s1_grd_beta0_tc.xml. The selected descending acquisition
+  (2024-08-18, datatake 06BCAB) is two consecutive GRD slices; SliceAssembly
+  joins them before orbit correction, so the terrain correction sees one
+  continuous product. Everything after that is identical to the one-slice graph.
+
+  Run:
+    gpt validation/snap/s1_grd_beta0_tc_2slices.xml \
+        -Pinput1=data/raw/S1A_IW_GRDH_1SDV_20240818T053519_20240818T053544_055263_06BCAB_4650.zip \
+        -Pinput2=data/raw/S1A_IW_GRDH_1SDV_20240818T053544_20240818T053609_055263_06BCAB_4683.zip \
+        -Pdem=build/validation/region_dem.tif \
+        -Poutput=build/validation/snap_descending.tif
+
+  STATUS: written against the SNAP 9/10 operator parameters but NOT YET RUN
+  (see s1_grd_beta0_tc.xml for what to check).
+-->
+<graph id="s1_grd_beta0_tc_2slices">
+  <version>1.0</version>
+  <node id="Read1">
+    <operator>Read</operator>
+    <parameters>
+      <file>${input1}</file>
+    </parameters>
+  </node>
+  <node id="Read2">
+    <operator>Read</operator>
+    <parameters>
+      <file>${input2}</file>
+    </parameters>
+  </node>
+  <node id="SliceAssembly">
+    <operator>SliceAssembly</operator>
+    <sources>
+      <sourceProduct refid="Read1"/>
+      <sourceProduct.1 refid="Read2"/>
+    </sources>
+    <parameters>
+      <selectedPolarisations>VV</selectedPolarisations>
+    </parameters>
+  </node>
+  <node id="Apply-Orbit-File">
+    <operator>Apply-Orbit-File</operator>
+    <sources>
+      <sourceProduct refid="SliceAssembly"/>
+    </sources>
+    <parameters>
+      <orbitType>Sentinel Precise (Auto Download)</orbitType>
+      <continueOnFail>false</continueOnFail>
+    </parameters>
+  </node>
+  <node id="ThermalNoiseRemoval">
+    <operator>ThermalNoiseRemoval</operator>
+    <sources>
+      <sourceProduct refid="Apply-Orbit-File"/>
+    </sources>
+    <parameters>
+      <selectedPolarisations>VV</selectedPolarisations>
+      <removeThermalNoise>true</removeThermalNoise>
+    </parameters>
+  </node>
+  <node id="Calibration">
+    <operator>Calibration</operator>
+    <sources>
+      <sourceProduct refid="ThermalNoiseRemoval"/>
+    </sources>
+    <parameters>
+      <selectedPolarisations>VV</selectedPolarisations>
+      <outputSigmaBand>false</outputSigmaBand>
+      <outputBetaBand>true</outputBetaBand>
+      <outputGammaBand>false</outputGammaBand>
+    </parameters>
+  </node>
+  <node id="Terrain-Correction">
+    <operator>Terrain-Correction</operator>
+    <sources>
+      <sourceProduct refid="Calibration"/>
+    </sources>
+    <parameters>
+      <demName>External DEM</demName>
+      <externalDEMFile>${dem}</externalDEMFile>
+      <externalDEMNoDataValue>-9999.0</externalDEMNoDataValue>
+      <externalDEMApplyEGM>false</externalDEMApplyEGM>
+      <demResamplingMethod>BILINEAR_INTERPOLATION</demResamplingMethod>
+      <imgResamplingMethod>BILINEAR_INTERPOLATION</imgResamplingMethod>
+      <pixelSpacingInMeter>30.0</pixelSpacingInMeter>
+      <mapProjection>EPSG:32632</mapProjection>
+      <nodataValueAtSea>false</nodataValueAtSea>
+      <saveSelectedSourceBand>true</saveSelectedSourceBand>
+      <saveLayoverShadowMask>true</saveLayoverShadowMask>
+      <applyRadiometricNormalization>false</applyRadiometricNormalization>
+    </parameters>
+  </node>
+  <node id="Write">
+    <operator>Write</operator>
+    <sources>
+      <sourceProduct refid="Terrain-Correction"/>
+    </sources>
+    <parameters>
+      <file>${output}</file>
+      <formatName>GeoTIFF-BigTIFF</formatName>
+    </parameters>
+  </node>
+</graph>
