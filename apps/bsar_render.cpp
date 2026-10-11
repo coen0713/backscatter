@@ -54,7 +54,9 @@ Rendering
   --bounces N             maximum bounces               [3]
   --pol HH|VV             polarisation                  [VV]
   --density D             coherent: scatterers per m^2  [airborne 4, spaceborne 0.2]
-  --pixel M               coherent: output pixel size [m]
+  --pixel M               coherent / hillshade: output pixel size [m]
+  --sun-azimuth DEG       hillshade: sun azimuth, clockwise from north [315]
+  --sun-elevation DEG     hillshade: sun elevation [45]
   --seed N                coherent: scatterer seed      [1]
   --threads N             0 = all cores                 [0]
   --out PREFIX            output path prefix            [bsar]
@@ -124,6 +126,7 @@ int main(int argc, char** argv) try {
     frame = EnuFrame({o[0], o[1], o[2]});
   }
   const bool has_dem = scene_spec.rfind("dem:", 0) == 0;
+  Vec2d projected_offset{0.0, 0.0};
   if (has_dem) {
     const std::filesystem::path path = scene_spec.substr(4);
     if (path.extension() == ".asc") {
@@ -134,6 +137,17 @@ int main(int argc, char** argv) try {
 #else
       throw std::invalid_argument("only .asc DEMs are supported without BSAR_WITH_GDAL");
 #endif
+    }
+    if (!dem.geographic) {
+      // Projected grids (e.g. UTM) have coordinates ~1e6 m, where a float vertex
+      // resolves only ~0.5 m. Re-centre the grid on the origin; footprints in
+      // the same CRS get the same shift below.
+      projected_offset = {dem.x0 + 0.5 * dem.dx * static_cast<double>(dem.nx - 1),
+                          dem.y0 + 0.5 * dem.dy * static_cast<double>(dem.ny - 1)};
+      dem.x0 -= projected_offset.x;
+      dem.y0 -= projected_offset.y;
+      std::printf("projected DEM re-centred: scene origin = (%.3f, %.3f) in the DEM's CRS\n",
+                  projected_offset.x, projected_offset.y);
     }
     if (dem.geographic && !frame) {
       // Default origin: DEM centre at its mean height.
@@ -154,7 +168,15 @@ int main(int argc, char** argv) try {
     scene = make_synthetic_scene(scene_spec);
   }
   if (args.has("buildings")) {
-    const FootprintSet fps = load_footprints(args.str("buildings", ""));
+    FootprintSet fps = load_footprints(args.str("buildings", ""));
+    if (!fps.geographic) {
+      for (Footprint& fp : fps.footprints) {
+        for (Vec2d& q : fp.ring) {
+          q.x -= projected_offset.x;
+          q.y -= projected_offset.y;
+        }
+      }
+    }
     if (fps.geographic && !frame) {
       throw std::invalid_argument("geographic footprints need --origin");
     }
@@ -203,9 +225,12 @@ int main(int argc, char** argv) try {
 
   // -------------------------------------------------------------- render
   if (mode == "hillshade") {
-    args.reject_unknown();
     HillshadeConfig cfg;
     cfg.threads = threads;
+    cfg.pixel_size = args.num("pixel", 0.0);
+    cfg.sun_azimuth_deg = args.num("sun-azimuth", 315.0);
+    cfg.sun_elevation_deg = args.num("sun-elevation", 45.0);
+    args.reject_unknown();
     const Image<float> img = render_hillshade(scene, cfg);
     write_png(out.path("_hillshade.png"), to_u8(img, 0.0, 1.0));
     write_npy(out.path("_hillshade.npy"), img);

@@ -17,8 +17,10 @@ Image<float> render_hillshade(const Scene& scene, const HillshadeConfig& config)
   const Aabb& b = scene.bounds();
   const Vec3f ext = b.extent();
   const double ps = config.pixel_size > 0.0 ? config.pixel_size : std::max(ext.x, ext.y) / 512.0;
-  const auto w = static_cast<std::size_t>(std::max(1.0, std::floor(ext.x / ps)));
-  const auto h = static_cast<std::size_t>(std::max(1.0, std::floor(ext.y / ps)));
+  // The small tolerance keeps an extent of exactly N pixels (up to float
+  // rounding of the bounds) from losing its last column.
+  const auto w = static_cast<std::size_t>(std::max(1.0, std::floor(ext.x / ps + 1e-3)));
+  const auto h = static_cast<std::size_t>(std::max(1.0, std::floor(ext.y / ps + 1e-3)));
 
   const double az = deg_to_rad(config.sun_azimuth_deg);
   const double el = deg_to_rad(config.sun_elevation_deg);

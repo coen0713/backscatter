@@ -117,3 +117,23 @@ jobs:
         with:
           name: benchmarks-ci
           path: benchmarks-ci.md
+
+  hillshade:
+    name: real DEM / gdaldem comparison
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build gdal-bin python3-numpy
+      - name: Build
+        run: |
+          cmake --preset release -DBSAR_BUILD_TESTS=OFF -DBSAR_BUILD_BENCH=OFF
+          cmake --build --preset release
+      - name: Compare with gdaldem hillshade
+        run: python3 scripts/compare_hillshade.py --build build/release --work hillshade
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hillshade-comparison
+          path: |
+            hillshade/report.md
+            hillshade/hillshade_compare.png
