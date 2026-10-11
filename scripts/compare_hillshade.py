@@ -98,13 +98,14 @@ def main() -> int:
     work.mkdir(parents=True, exist_ok=True)
     render = exe(args.build, "apps", "bsar_render")
 
-    # 1. Same metric grid for both tools.
+    # 1. Same metric grid for both tools. Cells outside the source tile (the UTM
+    #    rectangle overhangs the lon/lat box) become no-data, not 0 m.
     dem_tif = work / "dem_utm.tif"
     src = args.dem or f"/vsicurl/{TILE}"
     w, s, e, n = BBOX
     run(["gdalwarp", "-q", "-overwrite", "-t_srs", UTM_EPSG, "-tr", str(RESOLUTION), str(RESOLUTION),
          "-r", "bilinear", "-te_srs", "EPSG:4326", "-te", str(w), str(s), str(e), str(n),
-         "-ot", "Float32", src, str(dem_tif)])
+         "-ot", "Float32", "-dstnodata", "-9999", src, str(dem_tif)])
     dem_asc = work / "dem_utm.asc"
     run(["gdal_translate", "-q", "-of", "AAIGrid", str(dem_tif), str(dem_asc)])
 
