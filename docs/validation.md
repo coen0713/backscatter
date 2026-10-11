@@ -27,6 +27,18 @@ tracks, BVH against brute force, watertightness at shared vertices and edges,
 flat-plane radiometry (β⁰ = σ⁰/sin θ within 5%), and coherent double bounce at
 a wall foot.
 
+### Ray-tracing core on a real DEM
+
+`scripts/compare_hillshade.py` (run in CI on every push) renders an optical
+hillshade of a Copernicus GLO-30 crop (Lauterbrunnen / Jungfrau, warped to UTM
+at 30 m) and compares it with `gdaldem hillshade` on the same grid. Criteria
+fixed before the first run: Pearson r ≥ 0.95, |mean difference| ≤ 0.02, and the
+correlation must peak at zero shift (alignment check). Result: r = 0.986, mean
+difference −0.002, mean absolute difference 0.030: **pass**
+([report](hillshade_comparison.md)). The residual differences sit on ridges and
+gullies, where Horn's 3×3 operator smooths over 60 m and the ray tracer shades
+individual 30 m facets.
+
 ## 2. Against real Sentinel-1 data (planned: Phase 5)
 
 The comparison is pre-registered in [`prereg.md`](prereg.md). It must be filled in

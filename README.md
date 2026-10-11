@@ -40,6 +40,11 @@ run as unit tests in CI.
 | Dihedral double-bounce range | 0.30 m from the corner range | corner range | within one 1 m bin |
 | 1 vs. 20 threads | bit-identical (geometric and coherent) | | bit-identical |
 
+On real terrain, the ray-traced optical hillshade of a Copernicus GLO-30 tile
+(Jungfrau, 3,400 m of relief) matches `gdaldem hillshade` with Pearson r = 0.986
+and a mean difference of −0.002 ([report and side-by-side](docs/hillshade_comparison.md)),
+against criteria fixed before the first run (r ≥ 0.95, |bias| ≤ 0.02).
+
 Real-data validation against Sentinel-1 is the next phase. Its protocol (geographic
 held-out tiles, metrics, thresholds) is in [docs/validation.md](docs/validation.md),
 and [docs/prereg.md](docs/prereg.md) is to be committed before any real scene is
@@ -162,8 +167,9 @@ Planned phases (see the project plan) and where each one stands:
 
 - [x] **0. Groundwork:** repo, presets, CI, sanitizers, [SAR notes](docs/sar_notes.md)
 - [x] **1. Ray tracing core:** binned-SAH BVH, watertight intersection, DEM → mesh,
-      threaded traversal, ray-traced hillshade (checked against the analytic value;
-      the side-by-side with `gdaldem hillshade` on a real tile is still to do)
+      threaded traversal, ray-traced hillshade matching `gdaldem hillshade` on a real
+      Copernicus tile (Pearson r = 0.986, bias −0.002;
+      [report](docs/hillshade_comparison.md))
 - [x] **2. SAR geometry:** orbit interpolation, EOF parsing, zero-Doppler solver,
       range–azimuth binning, multi-bounce, layover/shadow masks, analytic
       plane/ridge/dihedral tests (the first side-by-side with a real Sentinel-1
