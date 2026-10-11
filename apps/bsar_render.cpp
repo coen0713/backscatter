@@ -315,6 +315,10 @@ int main(int argc, char** argv) try {
 
     if (do_geocode) {
       // Products on the DEM's own grid (same georeferencing as the input).
+      const EnuFrame* enu = frame.has_value() ? &*frame : nullptr;
+      if (dem.geographic && enu == nullptr) {
+        throw std::logic_error("geocode: geographic DEM without an ENU frame");
+      }
       std::vector<Vec3d> points(dem.nx * dem.ny);
       for (std::size_t j = 0; j < dem.ny; ++j) {
         for (std::size_t i = 0; i < dem.nx; ++i) {
@@ -324,7 +328,7 @@ int main(int argc, char** argv) try {
           if (!dem.valid(i, j)) {
             p = {0.0, 0.0, std::numeric_limits<double>::quiet_NaN()};
           } else if (dem.geographic) {
-            p = frame.value().geodetic_to_enu({y, x, dem.at(i, j)});  // set for geographic DEMs
+            p = enu->geodetic_to_enu({y, x, dem.at(i, j)});
           } else {
             p = {x, y, dem.at(i, j)};
           }
