@@ -115,7 +115,8 @@ TEST_CASE("EOF orbit file parsing", "[sensor][orbit]") {
   const Orbit orbit = parse_eof(xml);
   REQUIRE(orbit.state_vectors().size() == 2);
   const StateVector& sv = orbit.state_vectors()[0];
-  CHECK(sv.t == Approx(parse_utc("2024-01-01T23:00:00")));
+  CHECK(orbit.epoch() == parse_utc("2024-01-01T23:00:00"));
+  CHECK(sv.t == 0.0);  // state vectors are in orbit time
   CHECK(sv.position.x == Approx(-1234567.891));
   CHECK(sv.velocity.z == Approx(2500.125));
   CHECK(orbit.t_end() - orbit.t_begin() == Approx(10.0));

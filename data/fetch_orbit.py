@@ -17,26 +17,67 @@ from __future__ import annotations
 
 import argparse
 import re
-import shutil
 import sys
+import time
+import urllib.error
 import urllib.request
 import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from validation.fetch import download  # noqa: E402
+
 BASE = "https://step.esa.int/auxdata/orbits/Sentinel-1/POEORB"
 PATTERN = re.compile(r"(S1[ABC]_OPER_AUX_POEORB_OPOD_\d{8}T\d{6}_V(\d{8}T\d{6})_(\d{8}T\d{6})\.EOF(?:\.zip)?)")
 
 
-def listing(mission: str, month: datetime) -> list[tuple[str, datetime, datetime]]:
+def listing(mission: str, month: datetime, retries: int = 8) -> list[tuple[str, datetime, datetime]]:
     url = f"{BASE}/{mission}/{month:%Y}/{month:%m}/"
-    with urllib.request.urlopen(url) as resp:
-        html = resp.read().decode()
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(url, timeout=60) as resp:
+                html = resp.read().decode()
+            break
+        except (urllib.error.URLError, ConnectionError, TimeoutError):
+            if attempt == retries - 1:
+                raise
+            time.sleep(min(2.0 ** attempt, 30.0))
     out = []
     for name, start, stop in sorted(set(PATTERN.findall(html))):
         out.append((url + name, datetime.strptime(start, "%Y%m%dT%H%M%S"),
                     datetime.strptime(stop, "%Y%m%dT%H%M%S")))
     return out
+
+
+def fetch_orbit(mission: str, when: datetime, out: Path) -> Path:
+    """Download and unzip the POEORB file covering `when` (+-10 min) into `out`;
+    returns the .EOF path (reused if already present)."""
+    candidates = []
+    months = {(when + timedelta(days=d)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+              for d in (-2, 0, 2)}
+    for month in sorted(months):
+        try:
+            candidates += listing(mission, month)
+        except OSError as err:
+            print(f"warning: {err}", file=sys.stderr)
+    covering = [c for c in candidates
+                if c[1] <= when - timedelta(minutes=10) and c[2] >= when + timedelta(minutes=10)]
+    if not covering:
+        raise RuntimeError("no POEORB file covers that time "
+                           "(precise orbits appear ~3 weeks after acquisition)")
+    url = covering[-1][0]
+    out.mkdir(parents=True, exist_ok=True)
+    name = url.rsplit("/", 1)[1]
+    eof = out / name.removesuffix(".zip")
+    if eof.exists():
+        return eof
+    archive = download(url, out / name)
+    if archive.suffix == ".zip":
+        with zipfile.ZipFile(archive) as z:
+            z.extractall(out)
+        archive.unlink()
+    return eof
 
 
 def main() -> int:
@@ -45,31 +86,12 @@ def main() -> int:
     p.add_argument("--time", required=True, help="UTC, e.g. 2024-06-01T05:30:00")
     p.add_argument("--out", type=Path, default=Path("data/raw"))
     args = p.parse_args()
-
-    t = datetime.fromisoformat(args.time)
-    candidates = []
-    for month in {t.replace(day=1), (t + timedelta(days=2)).replace(day=1)}:
-        try:
-            candidates += listing(args.mission, month)
-        except OSError as err:
-            print(f"warning: {err}", file=sys.stderr)
-    covering = [c for c in candidates if c[1] <= t - timedelta(minutes=10) and c[2] >= t + timedelta(minutes=10)]
-    if not covering:
-        print("no POEORB file covers that time (precise orbits appear ~3 weeks after acquisition)",
-              file=sys.stderr)
+    try:
+        eof = fetch_orbit(args.mission, datetime.fromisoformat(args.time), args.out)
+    except RuntimeError as err:
+        print(err, file=sys.stderr)
         return 1
-    url = covering[-1][0]
-    args.out.mkdir(parents=True, exist_ok=True)
-    dest = args.out / url.rsplit("/", 1)[1]
-    print(f"downloading {url}")
-    with urllib.request.urlopen(url) as resp, open(dest, "wb") as f:
-        shutil.copyfileobj(resp, f)
-    if dest.suffix == ".zip":
-        with zipfile.ZipFile(dest) as z:
-            z.extractall(args.out)
-        dest.unlink()
-        dest = args.out / dest.stem
-    print(f"wrote {dest}")
+    print(f"wrote {eof}")
     return 0
 
 

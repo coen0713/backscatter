@@ -41,6 +41,8 @@ individual 30 m facets.
 
 ## 2. Against real Sentinel-1 data (planned: Phase 5)
 
+The pipeline that will run it is in [`validation/`](../validation/README.md) and
+has been dry-run on calibration tiles ([report](validation_dry_run.md)).
 The comparison is pre-registered in [`prereg.md`](prereg.md). It must be filled in
 and committed before any real scene is rendered. Summary of the protocol:
 

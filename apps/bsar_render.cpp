@@ -7,8 +7,10 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "backscatter/image/backprojection.hpp"
 #include "backscatter/image/geocode.hpp"
@@ -17,6 +19,7 @@
 #include "backscatter/scene/heightmap.hpp"
 #include "backscatter/scene/scene.hpp"
 #include "backscatter/sensor/orbit.hpp"
+#include "backscatter/sensor/passes.hpp"
 #include "backscatter/sensor/sar_geometry.hpp"
 #include "backscatter/sensor/trajectory.hpp"
 #include "backscatter/trace/coherent.hpp"
@@ -37,6 +40,8 @@ Scene
                           when built with BSAR_WITH_GDAL       [default: city]
   --geographic            the .asc DEM is in degrees (lon/lat), e.g. Copernicus
   --buildings PATH        building footprints (see data/fetch_osm_buildings.py)
+  --classes PATH          per-sample class grid on the DEM's grid (.asc), with
+  --material-table PATH   class -> material table (validation/materials_worldcover.txt)
   --origin LAT,LON,H      geodetic origin of the scene ENU frame (required for
                           geographic DEMs and orbit files)
 
@@ -170,7 +175,36 @@ int main(int argc, char** argv) try {
                         dem.x0 + 0.5 * dem.dx * static_cast<double>(dem.nx - 1),
                         n > 0 ? sum / static_cast<double>(n) : 0.0});
     }
-    scene.mesh = heightmap_to_mesh(dem, scene.material_id("dry_soil"), frame ? &*frame : nullptr);
+    if (args.has("classes") != args.has("material-table")) {
+      throw std::invalid_argument("--classes and --material-table go together");
+    }
+    if (args.has("classes")) {
+      // Per-sample land-cover class -> material; unknown classes get dry soil.
+      const Heightmap classes = load_esri_ascii(args.str("classes", ""), dem.geographic);
+      if (classes.nx != dem.nx || classes.ny != dem.ny) {
+        throw std::invalid_argument("--classes grid does not match the DEM grid");
+      }
+      const auto table = load_material_table(args.str("material-table", ""));
+      const std::uint16_t fallback = scene.material_id("dry_soil");
+      std::map<long, std::uint16_t> ids;
+      std::vector<std::uint16_t> sample_material(classes.z.size(), fallback);
+      for (std::size_t k = 0; k < classes.z.size(); ++k) {
+        const long code = std::lround(classes.z[k]);
+        auto it = ids.find(code);
+        if (it == ids.end()) {
+          const auto entry = table.find(static_cast<int>(code));
+          it =
+              ids.emplace(code, entry == table.end() ? fallback : scene.add_material(entry->second))
+                  .first;
+        }
+        sample_material[k] = it->second;
+      }
+      scene.mesh = heightmap_to_mesh(dem, sample_material, frame ? &*frame : nullptr);
+      std::printf("materials: %zu classes mapped to %zu materials\n", ids.size(),
+                  scene.materials.size());
+    } else {
+      scene.mesh = heightmap_to_mesh(dem, scene.material_id("dry_soil"), frame ? &*frame : nullptr);
+    }
   } else {
     scene = make_synthetic_scene(scene_spec);
   }
@@ -209,15 +243,10 @@ int main(int argc, char** argv) try {
     }
     Orbit orbit = load_eof(args.str("orbit", ""));
     if (args.has("time")) {
-      const double t = parse_utc(args.str("time", ""));
-      std::vector<StateVector> near;
-      for (const auto& sv : orbit.state_vectors()) {
-        if (std::abs(sv.t - t) <= 600.0) {
-          near.push_back(sv);
-        }
-      }
-      orbit = Orbit(std::move(near));
+      orbit = orbit.window(parse_utc(args.str("time", "")), 600.0);
     }
+    std::printf("orbit: %s .. %s UTC\n", format_utc(orbit.epoch()).c_str(),
+                format_utc(orbit.epoch() + orbit.t_end()).c_str());
     trajectory = std::make_unique<OrbitTrajectory>(std::move(orbit), *frame);
   } else {
     trajectory = std::make_unique<LinearTrajectory>(make_side_looking_track(

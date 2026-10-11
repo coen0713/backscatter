@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <sstream>
 #include <stdexcept>
 
 namespace bsar {
@@ -35,6 +37,54 @@ Material by_name(const std::string& name) {
 }
 
 }  // namespace materials
+
+std::map<int, Material> load_material_table(const std::filesystem::path& path) {
+  std::ifstream in(path);
+  if (!in) {
+    throw std::runtime_error("load_material_table: cannot open " + path.string());
+  }
+  std::map<int, Material> table;
+  std::string line;
+  std::size_t line_no = 0;
+  while (std::getline(in, line)) {
+    ++line_no;
+    if (const auto hash = line.find('#'); hash != std::string::npos) {
+      line.erase(hash);
+    }
+    std::istringstream ls(line);
+    int code = 0;
+    std::string kind;
+    if (!(ls >> code)) {
+      continue;  // blank or comment
+    }
+    const std::string where = path.string() + ":" + std::to_string(line_no);
+    if (!(ls >> kind)) {
+      throw std::runtime_error("load_material_table: missing kind at " + where);
+    }
+    Material m;
+    if (kind == "preset") {
+      std::string name;
+      ls >> name;
+      m = materials::by_name(name);
+    } else if (kind == "custom") {
+      double eps_re = 0.0;
+      double eps_im = 0.0;
+      if (!(ls >> m.name >> eps_re >> eps_im >> m.diffuse_coefficient >> m.diffuse_exponent >>
+            m.rms_slope)) {
+        throw std::runtime_error("load_material_table: bad custom entry at " + where);
+      }
+      m.permittivity = {eps_re, eps_im};
+      std::string flag;
+      m.perfect_conductor = (ls >> flag) && flag == "pec";
+    } else {
+      std::string msg = "load_material_table: unknown kind '";
+      msg.append(kind).append("' at ").append(where);
+      throw std::runtime_error(msg);
+    }
+    table[code] = m;
+  }
+  return table;
+}
 
 std::complex<double> fresnel_reflection(const Material& m, double cos_theta, Polarization pol) {
   if (m.perfect_conductor) {

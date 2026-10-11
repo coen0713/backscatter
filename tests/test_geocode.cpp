@@ -9,6 +9,7 @@
 #include "backscatter/scene/heightmap.hpp"
 #include "backscatter/scene/scene.hpp"
 #include "backscatter/sensor/passes.hpp"
+#include "backscatter/sensor/sar_geometry.hpp"
 #include "backscatter/trace/geometric.hpp"
 
 using namespace bsar;
@@ -49,6 +50,42 @@ TEST_CASE("Pass finder on a synthetic polar orbit", "[sensor][passes]") {
   CHECK(p.range < 9.0e5);
   // Closest approach is near the time the satellite crosses latitude 46.5.
   CHECK(p.t == Approx(deg_to_rad(46.3) / omega).margin(60.0));
+}
+
+TEST_CASE("Orbits keep precise time when the epoch is far from 2000", "[sensor][passes]") {
+  // Same geometry as above, but stamped in August 2024 (t ~ 7.8e8 s), where an
+  // absolute double only resolves ~1.2e-7 s. Orbit time keeps sub-ns precision
+  // and the zero-Doppler solve converges.
+  const Geodetic target{46.5, 7.9, 1000.0};
+  const double epoch = parse_utc("2024-08-15T05:00:00");
+  const double radius = 7.071e6;
+  const double omega = std::sqrt(3.986004418e14 / (radius * radius * radius));
+  const double lon = deg_to_rad(target.lon_deg - 4.5);
+  std::vector<StateVector> svs;
+  for (int k = 0; k <= 600; ++k) {
+    const double t = 10.0 * k;
+    const double a = omega * t;
+    svs.push_back({epoch + t,
+                   {radius * std::cos(a) * std::cos(lon), radius * std::cos(a) * std::sin(lon),
+                    radius * std::sin(a)},
+                   {-radius * omega * std::sin(a) * std::cos(lon),
+                    -radius * omega * std::sin(a) * std::sin(lon), radius * omega * std::cos(a)}});
+  }
+  const Orbit orbit(svs);
+  CHECK(orbit.epoch() == epoch);
+  CHECK(orbit.t_begin() == 0.0);
+  const auto passes = find_passes(orbit, target);
+  REQUIRE(passes.size() == 1);
+  CHECK(passes.front().t - epoch == Approx(deg_to_rad(46.3) / omega).margin(60.0));
+  const OrbitTrajectory traj(orbit, EnuFrame(target));
+  const ZeroDopplerSolution zd =
+      solve_zero_doppler(traj, Vec3d{}, passes.front().t - orbit.epoch() + 3.0);
+  CHECK(zd.converged);
+  CHECK(std::abs(dot(traj.velocity(zd.t), traj.position(zd.t))) < 1e-3 * 7.5e3);
+  // A window keeps absolute alignment.
+  const Orbit w = orbit.window(epoch + 3000.0, 600.0);
+  CHECK(w.epoch() == epoch + 2400.0);
+  CHECK(length(w.position(600.0) - orbit.position(3000.0)) < 1e-6);
 }
 
 TEST_CASE("Geocoded masks match the closed-form ridge geometry", "[geocode]") {

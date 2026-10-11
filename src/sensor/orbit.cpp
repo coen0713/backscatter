@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cmath>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -108,6 +109,12 @@ Orbit::Orbit(std::vector<StateVector> vectors) : vectors_(std::move(vectors)) {
   vectors_.erase(std::unique(vectors_.begin(), vectors_.end(),
                              [](const StateVector& a, const StateVector& b) { return a.t == b.t; }),
                  vectors_.end());
+  if (!vectors_.empty()) {
+    epoch_ = vectors_.front().t;
+    for (StateVector& sv : vectors_) {
+      sv.t -= epoch_;  // exact for nearby doubles (Sterbenz); S1 vectors are whole seconds
+    }
+  }
   if (vectors_.size() < 2) {
     throw std::invalid_argument("Orbit: need at least two distinct state vectors");
   }
@@ -116,6 +123,16 @@ Orbit::Orbit(std::vector<StateVector> vectors) : vectors_(std::move(vectors)) {
 double Orbit::t_begin() const { return vectors_.front().t; }
 
 double Orbit::t_end() const { return vectors_.back().t; }
+
+Orbit Orbit::window(double centre, double half_width) const {
+  std::vector<StateVector> selected;
+  for (const StateVector& sv : vectors_) {
+    if (std::abs(sv.t + epoch_ - centre) <= half_width) {
+      selected.push_back({sv.t + epoch_, sv.position, sv.velocity});
+    }
+  }
+  return Orbit(std::move(selected));
+}
 
 std::size_t Orbit::segment(double t) const {
   const auto it = std::upper_bound(vectors_.begin(), vectors_.end(), t,

@@ -26,7 +26,7 @@ std::vector<OrbitPass> find_passes(const Orbit& orbit, const Geodetic& target, d
       const Vec3d v = traj.velocity(zd.t);
       if (zd.converged && zd.range <= max_range) {
         OrbitPass pass;
-        pass.t = zd.t;
+        pass.t = orbit.epoch() + zd.t;  // absolute, for display and selection
         pass.range = zd.range;
         pass.incidence_deg = rad_to_deg(std::acos(p.z / length(p)));
         pass.ascending = orbit.velocity(zd.t).z > 0.0;

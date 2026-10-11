@@ -198,6 +198,15 @@ Heightmap load_dem_gdal(const std::filesystem::path& path) {
 #endif
 
 TriangleMesh heightmap_to_mesh(const Heightmap& hm, std::uint16_t material, const EnuFrame* frame) {
+  const std::vector<std::uint16_t> uniform(hm.nx * hm.ny, material);
+  return heightmap_to_mesh(hm, std::span<const std::uint16_t>(uniform), frame);
+}
+
+TriangleMesh heightmap_to_mesh(const Heightmap& hm, std::span<const std::uint16_t> sample_material,
+                               const EnuFrame* frame) {
+  if (sample_material.size() != hm.nx * hm.ny) {
+    throw std::invalid_argument("heightmap_to_mesh: material map does not match the grid");
+  }
   if (hm.geographic && frame == nullptr) {
     throw std::invalid_argument("heightmap_to_mesh: geographic grid needs an ENU frame");
   }
@@ -225,6 +234,7 @@ TriangleMesh heightmap_to_mesh(const Heightmap& hm, std::uint16_t material, cons
       const auto v10 = v00 + 1;
       const auto v01 = static_cast<std::uint32_t>(v00 + hm.nx);
       const auto v11 = v01 + 1;
+      const std::uint16_t material = sample_material[v00];  // the cell's south-west sample
       mesh.add_triangle(v00, v10, v11, material);
       mesh.add_triangle(v00, v11, v01, material);
     }

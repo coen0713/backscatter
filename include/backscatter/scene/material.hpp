@@ -1,6 +1,8 @@
 #pragma once
 
 #include <complex>
+#include <filesystem>
+#include <map>
 #include <string>
 
 #include "backscatter/math/vec3.hpp"
@@ -30,6 +32,15 @@ Material asphalt();
 /// Look up one of the presets above by name; throws on unknown names.
 Material by_name(const std::string& name);
 }  // namespace materials
+
+/// Class code -> material, read from a text table (e.g. land-cover classes):
+///
+///   # comment
+///   <code> preset <preset_name>
+///   <code> custom <name> <eps_re> <eps_im> <k> <n> <rms_slope> [pec]
+///
+/// eps_im follows the eps' - j eps'' convention (give it as a negative number).
+std::map<int, Material> load_material_table(const std::filesystem::path& path);
 
 /// Fresnel amplitude reflection coefficient for a planar interface between
 /// vacuum and a medium of complex relative permittivity, at incidence angle

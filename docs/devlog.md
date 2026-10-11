@@ -87,3 +87,44 @@ by about +-10% between runs depending on whether the thread lands on a P-core or
 an E-core, and a run that overlapped other load showed 40% thread efficiency
 instead of 88%. Benchmark numbers in the docs come from an idle machine on AC
 power, and comparisons within ~10% are reported as ties.
+
+## 2026-10-10: building the validation pipeline on calibration tiles
+
+**Absolute orbit time was too coarse.** The pass finder found every closest
+approach in a real POEORB file but Newton never converged. Orbit times were
+seconds since 2000 (~7.7e8 s), where a double resolves only ~1.2e-7 s; Newton's
+last steps (~3e-8 s) could not change `t`. Geometrically that is ~1 mm, but in
+coherent mode 1 mm of range is ~0.2 rad of two-way C-band phase. `Orbit` now
+works in orbit time (seconds since its first state vector, `epoch()`), with
+absolute UTC only at the edges; Newton also stops when a step no longer changes
+`t`. Synthetic test orbits started at t = 0, which is why the unit tests never
+caught it; there is now a test with a 2024 epoch.
+
+**A flaky network.** About one TLS connection in seven was reset on this
+machine, for every client; GDAL's HTTP reader does not retry by default, so
+remote COG reads failed or hung. Inputs are now downloaded once with a
+resumable, retrying downloader into `data/cache/` and read locally.
+
+**SNAP-reference loader, two traps found by the dry run's round trip.**
+(1) Simulated deep shadow has beta0 = 0, and real data after thermal-noise
+removal can be exactly 0 or negative there; treating 0 as no-data excluded every
+tile through the footprint rule. The swath is now the span between the first and
+last positive pixel of each row, with zeros inside kept at a -60 dB floor.
+(2) The layover-shadow mask's value 0 means "neither"; using the band's no-data
+value marked most of the scene invalid. Validity now comes from beta0 only.
+
+**Strict IoU is the wrong score for thin masks.** Shifting a simulation against
+itself by one 30 m cell (inside the 1-pixel geolocation tolerance) dropped
+shadow IoU to 0.09-0.61 and layover IoU to 0.60-0.85. The proposed thresholds now
+apply to an F1 that tolerates one cell; strict IoU is still reported. This was
+changed before registration, from simulated data only.
+
+**False alarms worth remembering.** A geoid check reported N = 44.6 m where
+51.3 m was expected: the check compared two different DEM pixels on a cliff,
+not the pipeline. A geocoding test failed because the "flat ground" probe sat in
+passive layover (ground in front of a ridge shares range bins with its crest);
+the test now asserts that passive layover explicitly.
+
+**Materials matter even for a geometry test.** The first quicklooks showed lakes
+as bright as meadows because the DEM got one material. The renderer now takes a
+WorldCover class grid and a class -> material table.

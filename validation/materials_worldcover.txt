@@ -1,0 +1,23 @@
+# ESA WorldCover 2021 class -> material for bsar_render --material-table.
+#
+# C-band (5.4 GHz), VV. These are STARTING values: per docs/prereg.md section 5,
+# only k (diffuse coefficient) and n (diffuse exponent) may be refitted, on
+# calibration tiles only. Permittivities and RMS slopes stay fixed.
+#
+# sigma0_diffuse = k cos^n(theta). Targets at 35 deg incidence from the typical
+# C-band ranges in Ulaby & Long (2014) and Sentinel-1 land backscatter studies:
+#   forest ~ -7 dB (weakly incidence-dependent: volume scattering, which this
+#   surface model can only mimic with a small n), grassland ~ -10 to -11 dB,
+#   bare rock/scree ~ -12 to -13 dB, wet snow (August glaciers) ~ -15 to -20 dB.
+#
+# code  kind    name            eps_re  eps_im  k      n     rms_slope
+10      custom  tree_cover      5.0     -1.0    0.25   0.6   0.50
+20      custom  shrubland       5.0     -1.0    0.15   1.2   0.35
+30      custom  grassland       8.0     -1.5    0.12   1.5   0.25
+40      custom  cropland        8.0     -1.5    0.12   1.5   0.25
+50      preset  concrete
+60      custom  bare_rock       6.0     -0.5    0.10   2.0   0.25
+70      custom  wet_snow_ice    1.8     -0.2    0.02   2.0   0.10
+80      preset  water
+90      preset  wet_soil
+100     custom  moss_lichen     5.0     -0.5    0.08   2.0   0.20

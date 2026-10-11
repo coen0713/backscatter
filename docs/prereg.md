@@ -78,20 +78,34 @@ descending reported separately), over held-out tiles only.
 
 | # | Metric | How | Pass threshold | Rationale |
 |---|---|---|---|---|
-| G1 | Layover IoU vs. SNAP | Our layover mask geocoded to the grid vs. SNAP Range-Doppler Terrain Correction "layover-shadow mask" (layover bit), same DEM and orbit, pooled over mountainous held-out tiles | ≥ 0.60 | Two independent implementations of the same geometry. Not 0.9+: the masks are thin features at 30 m, and SNAP's mask definition (e.g. whether passive layover is included) may differ from ours; differences will be analysed, not tuned away |
-| G2 | Shadow IoU vs. SNAP | Same, shadow bit | ≥ 0.60 | As above |
-| G3 | Shadow vs. reality | AUC of real β⁰ (dB, 90 m blocks) for separating our predicted-shadow blocks (≥ 50% shadow) from non-shadow blocks; lower β⁰ = shadow | ≥ 0.85 | Tests the masks against the actual image, not another model: radar shadow sits at the noise floor (IW NESZ ≈ −22 dB) |
-| R1 | Radiometry, bare rock / sparse vegetation | Pearson r of simulated vs. real β⁰ (dB), 90 m blocks (≈ 81 looks, so speckle is negligible), WorldCover 60 | ≥ 0.50 | Terrain-dominated surface scattering, which the model is built for |
+| G1 | Layover agreement vs. SNAP | Our layover mask geocoded to the grid vs. SNAP Range-Doppler Terrain Correction "layover-shadow mask" (layover bit), same DEM and orbit, pooled over mountainous held-out tiles. **Thresholded on the 1-cell-tolerant F1** (a cell counts as matched if the other mask has a cell within 30 m); strict IoU is reported alongside | F1 ≥ 0.60 | Two independent implementations of the same geometry. Tolerant F1 rather than IoU: in the dry run, a 1-cell (30 m) shift alone, which L1 accepts, dropped strict layover IoU to 0.60–0.85 and shadow IoU to 0.09–0.61, while F1 stayed ≥ 0.978 (`docs/validation_dry_run.md`). SNAP's mask definition (e.g. whether passive layover is included) may differ from ours; differences will be analysed, not tuned away |
+| G2 | Shadow agreement vs. SNAP | Same, shadow bit | F1 ≥ 0.60 | As above |
+| G3 | Shadow vs. reality | AUC of real β⁰ (dB, 90 m blocks) for separating our predicted-shadow blocks (≥ 50% of cells in shadow) from blocks with **no** predicted shadow cell (partly shadowed blocks are left out); lower β⁰ = shadow | ≥ 0.85 | Tests the masks against the actual image, not another model: radar shadow sits at the noise floor (IW NESZ ≈ −22 dB) |
+| R1 | Radiometry, bare rock / sparse vegetation | Pearson r of simulated vs. real β⁰ (dB), 90 m blocks (≈ 81 looks, so speckle is negligible) that are class-pure (≥ 7 of 9 cells of the class), WorldCover 60, pooled over held-out tiles | ≥ 0.50 | Terrain-dominated surface scattering, which the model is built for |
 | R2 | Radiometry, grassland | Same, WorldCover 30 | reported | Prediction: r between 0.3 and 0.6 (surface scattering plus some volume) |
 | R3 | Radiometry, tree cover | Same, WorldCover 10 | reported | **Predicted to fail:** r < 0.3, because the model has no volume scattering. Reported in its own section, never averaged into a headline |
-| L1 | Geolocation | Sub-pixel offset of real vs. simulated β⁰ by phase correlation per held-out mountainous tile; median over tiles, east and north separately | ≤ 1 pixel (30 m) each | Orbit and DEM errors are far below this; a larger offset means a timing or datum bug |
+| L1 | Geolocation | Sub-pixel offset of real vs. simulated β⁰ (dB, 30 m cells, Hann-windowed phase correlation with parabolic peak fit) per held-out tile; median over tiles, east and north separately | ≤ 1 pixel (30 m) each | Orbit and DEM errors are far below this; a larger offset means a timing or datum bug |
 
 **Comparison quantity.** Both sides use β⁰ (radar brightness), not γ⁰. Terrain
 flattening would remove exactly the terrain effects being simulated. Real side
-(SNAP): Apply Orbit File → Thermal Noise Removal → Calibration (β⁰) →
-Range-Doppler Terrain Correction to the grid, no radiometric normalisation. Our
-side: geometric mode at 10 m slant range / 10 m azimuth spacing, then geocoded
-by solving zero-Doppler for every grid cell and sampling the slant-range image.
+(SNAP, `validation/snap/s1_grd_beta0_tc.xml`): Apply Orbit File → Thermal Noise
+Removal → Calibration (β⁰) → Range-Doppler Terrain Correction to UTM 32N at
+30 m with the same ellipsoidal DEM, no radiometric normalisation. Our side:
+geometric mode (2 bounces) at 10 m slant range / 10 m azimuth spacing, with
+per-class materials from `validation/materials_worldcover.txt`, geocoded by
+solving zero-Doppler for every DEM sample and sampling the slant-range image,
+then resampled to the tile's UTM 30 m grid.
+
+**Mask conventions** (matching SNAP's ground-geometry mask): *shadow* = the
+ground cell cannot see the sensor (occlusion ray); *layover* = the cell's
+slant-range bin receives returns from more than one part of the surface
+(active and passive layover).
+
+**Reference footprint.** Thermal-noise removal leaves shadow at exactly zero
+(or below), so the swath is not "β⁰ > 0": per image row, everything between
+the first and last positive pixel is inside it; zero or negative values inside
+are kept at a −60 dB floor. The mask band's value 0 means "neither", never
+no-data.
 
 ## 5. What may be tuned, and on what
 
@@ -110,10 +124,17 @@ by solving zero-Doppler for every grid cell and sampling the slant-range image.
 ## 6. Procedure
 
 1. **Before registration** (allowed now): build the missing pipeline pieces using
-   calibration tiles only: geocoding of slant-range products to the UTM grid
-   (`bsar_eval geocode`), WorldCover stratification, the metric scripts, and a
-   SNAP graph (`.xml`) for the real-data chain. Dry-run end to end on calibration
-   tiles.
+   calibration tiles only, and dry-run end to end on calibration tiles.
+   *Status: built and dry-run* (`validation/`, see `validation/README.md`;
+   results in `docs/validation_dry_run.md`). Still to do before registering:
+   run the SNAP graph on one real scene over **calibration tiles only** to
+   confirm its output band names and mask encoding (the graph has not been run
+   yet), and look up the scene IDs.
+   *Candidate passes* from the precise orbits (`bsar_eval passes`, geometry only,
+   no imagery): S1A ascending 2024-08-14 17:15:51 UTC (incidence 32.9° at
+   46.5 N 8.0 E) and descending 2024-08-18 05:35:49 UTC (41.3°). The selection
+   rule in section 2 is still applied to the catalogue, which may differ (e.g.
+   if a pass was not acquired or does not cover the whole region).
 2. **Register:** record the scene IDs (catalogue only) and the pipeline commit
    hash below, set the status to `REGISTERED`, and commit.
 3. Fit the tunable parameters on calibration tiles; record them in this file

@@ -22,9 +22,13 @@ ZeroDopplerSolution solve_zero_doppler(const Trajectory& trajectory, const Vec3d
       break;
     }
     const double step = f / df;
-    t -= step;
+    const double t_next = t - step;
     sol.iterations = i + 1;
-    if (std::abs(step) < tolerance) {
+    // Also stop once the step no longer changes t: with large time values the
+    // requested tolerance can be below the spacing of representable doubles.
+    const bool stalled = t_next == t;
+    t = t_next;
+    if (std::abs(step) < tolerance || stalled) {
       sol.converged = true;
       break;
     }

@@ -53,6 +53,11 @@ Heightmap load_dem_gdal(const std::filesystem::path& path);
 TriangleMesh heightmap_to_mesh(const Heightmap& hm, std::uint16_t material,
                                const EnuFrame* frame = nullptr);
 
+/// Same, with a material id per sample (row-major like `hm.z`); each cell takes
+/// the material of its south-west sample.
+TriangleMesh heightmap_to_mesh(const Heightmap& hm, std::span<const std::uint16_t> sample_material,
+                               const EnuFrame* frame = nullptr);
+
 /// Deterministic synthetic terrain: sum of value-noise octaves.
 Heightmap make_fractal_terrain(std::size_t n, double cell_size, double amplitude,
                                std::uint64_t seed);

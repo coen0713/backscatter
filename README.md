@@ -142,6 +142,7 @@ include/backscatter/
   image/      backprojection, PNG/NPY I/O
   eval/       IRF metrics (resolution, PSLR, ISLR), speckle statistics, mask IoU, theory checks
 apps/         bsar_render, bsar_eval
+validation/   real-data validation pipeline (DEM, orbits, WorldCover, geocoding, metrics)
 bench/        bsar_bench (Markdown output)
 python/       nanobind module
 data/         scripts that fetch DEM / OSM / orbit data (nothing checked in)
@@ -180,8 +181,11 @@ Planned phases (see the project plan) and where each one stands:
       with runtime dispatch, Python bindings, scripted benchmarks, Embree baseline
       (1.67× faster than ours). Open: compressed nodes or ray packets to attack
       the memory-latency bound; CUDA backprojection (stretch).
-- [ ] **5. Real-data validation:** fetch scripts and protocol are ready;
-      pre-registration, rendering held-out tiles and the comparison are not done.
+- [~] **5. Real-data validation:** pre-registration drafted
+      ([proposal](docs/prereg.md)); pipeline built and dry-run on calibration
+      tiles with real DEM, orbits and land cover ([pipeline](validation/README.md),
+      [dry run](docs/validation_dry_run.md)). *Still to do:* run the SNAP graph on
+      one real scene, register, fit per-class parameters, evaluate held-out tiles.
 - [ ] **6. Write-up**
 - [ ] Stretch: CUDA backprojection, synthetic SAR/optical pairs, InSAR pairs
 
