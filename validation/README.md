@@ -55,3 +55,13 @@ python -m validation.evaluate run --set calibration \
 | SNAP graph | **Written but never run.** To confirm with one real scene over calibration tiles: output band names (`Beta0_VV`, `layover_shadow_mask` expected) and mask encoding (bit 1 = layover, bit 2 = shadow expected); `evaluate run` takes both as options |
 | Per-class `k`, `n` fitting | Not built yet; needs real calibration data |
 | Real Sentinel-1 data | Needs a Copernicus Data Space account (not automated) |
+
+## Dry-run quicklooks
+
+Tile N46.60 E7.90 (Lauterbrunnen), simulated beta0 on the UTM grid with layover
+tinted red and shadow blue. Opposite look directions put layover and shadow on
+opposite slopes.
+
+| Ascending, 2024-08-14 17:15 UTC (incidence ~33°) | Descending, 2024-08-18 05:35 UTC (~41°) |
+|---|---|
+| ![ascending](../docs/images/dryrun_asc_N46.60_E007.90.png) | ![descending](../docs/images/dryrun_desc_N46.60_E007.90.png) |
