@@ -7,8 +7,8 @@
 
   # 3. Simulate and compare every tile of a set against the SNAP outputs:
   python -m validation.evaluate run --set calibration \
-      --asc snap_asc.tif --asc-time 2024-08-19T17:24:01 \
-      --desc snap_desc.tif --desc-time 2024-08-18T05:35:49 \
+      --asc snap_asc.tif --asc-time 2024-08-07T17:24:01 \
+      --desc snap_desc.tif --desc-time 2024-08-06T05:35:49 \
       --build build/release --out build/validation/calibration
 
 `--set held-out` is refused until docs/prereg.md is registered.

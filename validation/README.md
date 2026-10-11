@@ -48,12 +48,12 @@ gpt validation/snap/s1_grd_beta0_tc_2slices.xml -Pinput1=data/raw/<desc 1>.zip \
     -Pinput2=data/raw/<desc 2>.zip -Pdem=build/validation/region_dem.tif \
     -Poutput=build/validation/snap_desc.tif
 python -m validation.fit \
-    --asc snap_asc.tif --asc-time 2024-08-19T17:24:01 \
-    --desc snap_desc.tif --desc-time 2024-08-18T05:35:49 \
+    --asc snap_asc.tif --asc-time 2024-08-07T17:24:01 \
+    --desc snap_desc.tif --desc-time 2024-08-06T05:35:49 \
     --build build/release --out build/validation/fit   # writes materials_fitted.txt
 python -m validation.evaluate run --set calibration \
-    --asc snap_asc.tif --asc-time 2024-08-19T17:24:01 \
-    --desc snap_desc.tif --desc-time 2024-08-18T05:35:49 \
+    --asc snap_asc.tif --asc-time 2024-08-07T17:24:01 \
+    --desc snap_desc.tif --desc-time 2024-08-06T05:35:49 \
     --table build/validation/fit/materials_fitted.txt \
     --build build/release --out build/validation/calibration
 # After registration: the same with --set held-out (refused before that).
@@ -78,6 +78,6 @@ Tile N46.60 E7.90 (Lauterbrunnen), simulated beta0 on the UTM grid with layover
 tinted red and shadow blue. Opposite look directions put layover and shadow on
 opposite slopes.
 
-| Ascending, 2024-08-19 17:24 UTC (incidence ~42°) | Descending, 2024-08-18 05:35 UTC (~41°) |
+| Ascending, 2024-08-07 17:24 UTC (incidence ~42°) | Descending, 2024-08-06 05:35 UTC (~41°) |
 |---|---|
 | ![ascending](../docs/images/dryrun_asc_N46.60_E007.90.png) | ![descending](../docs/images/dryrun_desc_N46.60_E007.90.png) |

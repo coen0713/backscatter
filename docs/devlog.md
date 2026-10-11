@@ -183,3 +183,21 @@ asking for the exact parameters was the wrong test. The fit now reports, per
 class, how much its objective rises at n +- 0.5; below 0.1 dB n is "weakly
 constrained" and is not interpreted, and the recovery check accepts a weakly
 constrained class whose predictions match the truth.
+
+## 2026-10-11: the selected scenes fail a snow check, so the fallbacks are used
+
+The prereg rejects a scene with fresh snow above 2,500 m in the 3 days before it,
+but left "the MeteoSwiss record" undefined. It is now a script
+(`validation/snow_check.py`) on MeteoSwiss open hourly station data, fixed before
+any imagery: an hour is wet if Guetsch or Pilatus records at least 0.3 mm, a wet
+hour counts as snowfall if any station at or above 2,500 m is at or below +1 C,
+and a scene fails on snowfall evidence in the preceding 72 h or rain at the
+acquisition hour. (The SLF IMIS network measures snow height directly, but its
+open API only reaches 7 days back.)
+
+Both scenes closest to 15 August fail: a cold front on 17-18 August brought
+precipitation with Jungfraujoch below freezing, and it was raining during the
+18 August descending pass. The next closest eligible acquisitions pass and are
+now selected: ascending 2024-08-07 (datatake 06B719, 97.3% coverage) and
+descending 2024-08-06 (06B64D, two slices, full coverage). The geometry is the
+same relative orbits as before, so the dry-run incidence angles do not change.

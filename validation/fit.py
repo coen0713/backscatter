@@ -30,8 +30,8 @@ Objective (pre-registered): the median absolute dB error over those blocks,
 pooled over all calibration tiles and both passes; minimised over k for each
 n, then over n.
 
-  python -m validation.fit --asc snap_asc.tif --asc-time 2024-08-19T17:24:01 \\
-      --desc snap_desc.tif --desc-time 2024-08-18T05:35:49 --build build/release \\
+  python -m validation.fit --asc snap_asc.tif --asc-time 2024-08-07T17:24:01 \\
+      --desc snap_desc.tif --desc-time 2024-08-06T05:35:49 --build build/release \\
       --out build/validation/fit
 """
 

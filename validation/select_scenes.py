@@ -2,8 +2,8 @@
 
 docs/prereg.md, section 2: for each direction, among acquisitions between
 2024-07-15 and 2024-09-15 whose footprint covers at least 95% of the region,
-take the one closest to 2024-08-15 (then check for fresh snow, which is a
-manual step). Tiles outside a selected scene's footprint are dropped by the
+take the closest to 2024-08-15 that passes the snow check (validation/snow_check.py,
+MeteoSwiss open data; otherwise the next closest). Tiles outside a selected scene's footprint are dropped by the
 pre-registered tile exclusions. (The draft rule required full coverage; no
 ascending acquisition in the window achieves that, the best covering 97.2%.)
 
@@ -30,7 +30,7 @@ import urllib.request
 from collections import defaultdict
 from datetime import datetime, timezone
 
-from validation import regions
+from validation import regions, snow_check
 
 CATALOGUE = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products"
 WINDOW = ("2024-07-15T00:00:00.000Z", "2024-09-15T00:00:00.000Z")
@@ -126,28 +126,42 @@ def main() -> int:
     args = p.parse_args()
     acqs = acquisitions(query())
     result = {}
+    selected = {}
     for direction in ("ASCENDING", "DESCENDING"):
         cands = sorted((a for a in acqs if a["direction"] == direction),
                        key=lambda a: (a["coverage"] < MIN_COVERAGE, a["days_from_target"]))
         full = [a for a in cands if a["coverage"] >= MIN_COVERAGE]
+        # Snow check in rank order; the first acquisition that passes is selected.
+        for a in full:
+            a["snow_check"] = snow_check.check(datetime.fromisoformat(a["start"]))
+            if a["snow_check"]["passed"]:
+                selected[direction] = a
+                break
         result[direction] = full
         print(f"\n{direction}: {len(cands)} acquisitions, {len(full)} cover "
               f">= {MIN_COVERAGE:.0%} of the region")
-        print("| Rank | Start (UTC) | Rel. orbit | Datatake | Days from 08-15 | Coverage | Slices | Size |")
-        print("|---|---|---|---|---|---|---|---|")
+        print("| Rank | Start (UTC) | Rel. orbit | Datatake | Days from 08-15 | Coverage | Slices | "
+              "Size | Snow check |")
+        print("|---|---|---|---|---|---|---|---|---|")
         for i, a in enumerate(cands[:8], start=1):
             rank = str(i) if a["coverage"] >= MIN_COVERAGE else "-"
+            sc = a.get("snow_check")
+            verdict = ("not needed" if sc is None and a["coverage"] >= MIN_COVERAGE else
+                       "-" if sc is None else "pass" if sc["passed"] else
+                       "FAIL: " + "; ".join(sc["reasons"]))
             print(f"| {rank} | {a['start'][:19]} | {a['relative_orbit']} | {a['datatake']} | "
                   f"{a['days_from_target']:.1f} | {a['coverage']:.1%} | {len(a['products'])} | "
-                  f"{a['size_bytes'] / 1e9:.1f} GB |")
-        if full:
-            print("Selected (pending the snow check): " + ", ".join(full[0]["products"]))
+                  f"{a['size_bytes'] / 1e9:.1f} GB | {verdict} |")
+        if direction in selected:
+            print("Selected: " + ", ".join(selected[direction]["products"]))
+        else:
+            print("No acquisition passes coverage and snow check.")
     if args.json:
         with open(args.json, "w") as f:
             json.dump(result, f, indent=1)
     if args.selected:
         with open(args.selected, "w") as f:
-            json.dump({d: c[0] for d, c in result.items() if c}, f, indent=1)
+            json.dump(selected, f, indent=1)
     return 0
 
 

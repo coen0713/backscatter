@@ -43,8 +43,8 @@ ROOT = Path(__file__).resolve().parent.parent
 # the zero-Doppler times over the region centre (bsar_eval passes, POEORB).
 # Orbit geometry only; the dry run never reads imagery.
 DEFAULT_PASSES = {
-    "ascending": "2024-08-19T17:24:01",
-    "descending": "2024-08-18T05:35:49",
+    "ascending": "2024-08-07T17:24:01",
+    "descending": "2024-08-06T05:35:49",
 }
 # Lauterbrunnen / Jungfrau calibration block (4, 3): the steepest terrain in the region.
 DEFAULT_TILES = ["N46.60_E007.80", "N46.60_E007.90", "N46.70_E007.80", "N46.70_E007.90"]

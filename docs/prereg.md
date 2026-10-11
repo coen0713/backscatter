@@ -30,7 +30,7 @@
 | Product | Sentinel-1A IW GRDH, VV polarisation | Standard, free, 10 m pixels; VV is the co-pol channel the model represents |
 | Orbit | POEORB precise orbit for each scene | ~5 cm accuracy; removes orbit error as an explanation |
 | Acquisitions | **Two** scenes: one ascending and one descending relative orbit, each covering the whole region | Opposite look directions put layover and shadow on opposite slopes, so each slope is tested in both roles |
-| Scene selection rule | For each direction: an *acquisition* is one datatake (all its GRD slices; footprint = union of slice footprints). Among acquisitions between 2024-07-15 and 2024-09-15 whose footprint covers **at least 95%** of the region, take the one closest to 2024-08-15; if the MeteoSwiss record shows fresh snow above 2,500 m within 3 days before it, take the next closest. Tiles outside a selected footprint are dropped by the exclusions in section 3. Implemented by `python -m validation.select_scenes` | Fixes the choice before looking at any image; late summer minimises snow cover, which changes radiometry (not geometry). The draft required full coverage; applying it to the catalogue showed no ascending acquisition in the window does (best 97.2%), so the threshold was set to 95% before registration and before any imagery was obtained |
+| Scene selection rule | For each direction: an *acquisition* is one datatake (all its GRD slices; footprint = union of slice footprints). Among acquisitions between 2024-07-15 and 2024-09-15 whose footprint covers **at least 95%** of the region, take the one closest to 2024-08-15 that passes the snow check, else the next closest. Snow check (`validation/snow_check.py`, MeteoSwiss open hourly data, fixed before any imagery was obtained): an hour is wet if Guetsch (2286 m) or Pilatus (2105 m) records >= 0.3 mm; a wet hour is snowfall evidence if any station at or above 2,500 m (Jungfraujoch, Gornergrat, Diablerets, Eggishorn, Les Attelas, Titlis) is at or below +1.0 °C. Reject the acquisition if there is snowfall evidence in the 72 h before it, or if it is precipitating at the acquisition hour. Tiles outside a selected footprint are dropped by the exclusions in section 3. Implemented by `python -m validation.select_scenes` | Fixes the choice before looking at any image; late summer minimises snow cover, which changes radiometry (not geometry); fresh snow and wet surfaces change C-band backscatter by several dB. The draft required full coverage; applying it to the catalogue showed no ascending acquisition in the window does (best 97.2%), so the threshold was set to 95% before registration and before any imagery was obtained |
 | Scene IDs | Section 7 | |
 | DEM | Copernicus GLO-30, converted to WGS84 ellipsoidal heights (`data/fetch_dem.py --ellipsoidal`), warped to UTM 32N at 30 m | Same DEM for simulation and for the reference; ellipsoidal heights to match the orbits |
 | Land cover | ESA WorldCover 2021, resampled to the 30 m grid by majority | Defines the per-class strata |
@@ -153,12 +153,12 @@ no-data.
    results in `docs/validation_dry_run.md`). Still to do before registering:
    run the SNAP graph on one real scene over **calibration tiles only** to
    confirm its output band names and mask encoding (the graph has not been run
-   yet), and do the snow check for the two selected scenes.
+   yet).
    *Scenes selected* by `python -m validation.select_scenes` (public catalogue
    metadata only, no imagery; see section 7). Their zero-Doppler times over
    46.5 N 8.0 E from the precise orbits (`bsar_eval passes`) fall inside the
    catalogue's slice times, an independent consistency check: ascending
-   2024-08-19 17:24:01 UTC (incidence 42.4°), descending 2024-08-18 05:35:49 UTC
+   2024-08-07 17:24:01 UTC (incidence 42.4°), descending 2024-08-06 05:35:49 UTC
    (41.3°).
 2. **Register:** record the scene IDs (catalogue only) and the pipeline commit
    hash below, set the status to `REGISTERED`, and commit.
@@ -171,15 +171,20 @@ no-data.
 ## 7. Recorded at registration
 
 * Scene IDs (from the selection rule applied to the catalogue on 2026-10-11;
-  `build/validation/selected_scenes.json`; snow check still to do):
-  * Ascending, relative orbit 88, datatake 06BD78, 97.2% of the region:
-    `S1A_IW_GRDH_1SDV_20240819T172348_20240819T172413_055285_06BD78_F48F`
-  * Descending, relative orbit 66, datatake 06BCAB, 99.96% of the region (two
+  `build/validation/selected_scenes.json`):
+  * Ascending, relative orbit 88, datatake 06B719, 97.3% of the region:
+    `S1A_IW_GRDH_1SDV_20240807T172348_20240807T172413_055110_06B719_AF33`
+  * Descending, relative orbit 66, datatake 06B64D, 100% of the region (two
     slices, joined with `validation/snap/s1_grd_beta0_tc_2slices.xml`):
-    `S1A_IW_GRDH_1SDV_20240818T053519_20240818T053544_055263_06BCAB_4650`,
-    `S1A_IW_GRDH_1SDV_20240818T053544_20240818T053609_055263_06BCAB_4683`
-  * Fallbacks if the snow check fails (next closest eligible): ascending
-    2024-08-07 (06B719), descending 2024-08-06 (06B64D).
+    `S1A_IW_GRDH_1SDV_20240806T053519_20240806T053544_055088_06B64D_2F40`,
+    `S1A_IW_GRDH_1SDV_20240806T053544_20240806T053609_055088_06B64D_8ECE`
+  * Snow check: the acquisitions closest to 2024-08-15 (ascending 2024-08-19,
+    06BD78; descending 2024-08-18, 06BCAB) both fail. A cold front on 17-18
+    August brought precipitation with Jungfraujoch below 0 °C (first evidence
+    2024-08-18 04:00 UTC, -0.3 °C), and it was precipitating during the
+    descending acquisition. The next closest eligible acquisitions, listed above, pass:
+    ascending 1.7 mm (Guetsch) / 11.7 mm (Pilatus) in the preceding 72 h with no
+    station at or below +1 °C during wet hours; descending dry (0 / 0 mm).
 * Pipeline commit: *to fill*
 
 ## 8. Fitted parameters

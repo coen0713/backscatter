@@ -1,13 +1,13 @@
 <!--
   Two-slice variant of s1_grd_beta0_tc.xml. The selected descending acquisition
-  (2024-08-18, datatake 06BCAB) is two consecutive GRD slices; SliceAssembly
+  (2024-08-06, datatake 06B64D) is two consecutive GRD slices; SliceAssembly
   joins them before orbit correction, so the terrain correction sees one
   continuous product. Everything after that is identical to the one-slice graph.
 
   Run:
     gpt validation/snap/s1_grd_beta0_tc_2slices.xml \
-        -Pinput1=data/raw/S1A_IW_GRDH_1SDV_20240818T053519_20240818T053544_055263_06BCAB_4650.zip \
-        -Pinput2=data/raw/S1A_IW_GRDH_1SDV_20240818T053544_20240818T053609_055263_06BCAB_4683.zip \
+        -Pinput1=data/raw/S1A_IW_GRDH_1SDV_20240806T053519_20240806T053544_055088_06B64D_2F40.zip \
+        -Pinput2=data/raw/S1A_IW_GRDH_1SDV_20240806T053544_20240806T053609_055088_06B64D_8ECE.zip \
         -Pdem=build/validation/region_dem.tif \
         -Poutput=build/validation/snap_descending.tif
 
