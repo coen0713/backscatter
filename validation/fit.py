@@ -61,6 +61,7 @@ MIN_BLOCKS = 100   # fewer pure blocks than this: keep the starting values
 SNOW_ICE = 70
 INTERIOR_RING = 1  # cells of the same class required around a fitting block
 ITERATIONS = 2     # multi-bounce re-render / refit rounds
+N_WEAK_DB = 0.1    # objective rise at n +- 0.5 below which n counts as weakly constrained
 
 
 # ------------------------------------------------------------------ tables
@@ -264,7 +265,15 @@ def fit_class(y: np.ndarray, s: np.ndarray, f: dict[float, np.ndarray]) -> dict:
     lo, hi = ns[max(i - 1, 0)], ns[min(i + 1, len(ns) - 1)]
     n = _golden(lambda v: best_k(y, s, diffuse_at(f, v))[1], float(lo), float(hi), 1e-3)
     k, obj = best_k(y, s, diffuse_at(f, n))
-    return {"k": k, "n": float(n), "median_abs_db": obj, "blocks": int(y.size)}
+    # How well is n constrained? A class seen over a narrow range of local
+    # incidence (a flat lake) cannot separate k from n: k cos^n is nearly the
+    # same for many (k, n) pairs. Report the objective's rise at n +- 0.5
+    # (with k re-optimised); below N_WEAK_DB, n is weakly constrained.
+    rises = [best_k(y, s, diffuse_at(f, float(np.clip(n + d, grid[0], grid[-1]))))[1] - obj
+             for d in (-0.5, 0.5) if grid[0] <= n + d <= grid[-1]]
+    rise = float(min(rises)) if rises else float("nan")
+    return {"k": k, "n": float(n), "median_abs_db": obj, "blocks": int(y.size),
+            "n_profile_rise_db": rise, "n_weak": bool(rise < N_WEAK_DB)}
 
 
 def fit_all(pooled: dict[int, ClassBlocks], base: list[MaterialEntry]) -> tuple[list[MaterialEntry], dict]:
@@ -303,15 +312,17 @@ class FitContext:
 
 
 def run_fit(contexts: list[FitContext], base: list[MaterialEntry], render: Path,
-            iterations: int = ITERATIONS) -> tuple[list[MaterialEntry], dict, list[dict]]:
+            iterations: int = ITERATIONS
+            ) -> tuple[list[MaterialEntry], dict, list[dict], dict[int, ClassBlocks]]:
     """Fit k and n per class. Each iteration re-renders the multi-bounce part M
     with the current table, then refits every class with M held fixed.
-    Returns (fitted table, final report, per-iteration reports)."""
+    Returns (fitted table, final report, per-iteration reports, final blocks)."""
     table = list(base)
     history = []
+    pooled: dict[int, ClassBlocks] = {}
     report: dict = {}
     for it in range(iterations):
-        pooled: dict[int, ClassBlocks] = {}
+        pooled = {}
         for ctx in contexts:
             offset = multi_bounce(ctx.prep, ctx.orbit, ctx.utc, render, table, f"it{it}")
             collect_blocks(ctx.basis, ctx.ref_beta0, ctx.ref_valid, pooled, offset)
@@ -319,20 +330,26 @@ def run_fit(contexts: list[FitContext], base: list[MaterialEntry], render: Path,
         # before/after comparison; the fit itself starts from scratch each round.
         table, report = fit_all(pooled, base)
         history.append(report)
-    return table, report, history
+    return table, report, history, pooled
 
 
 def report_lines(report: dict) -> list[str]:
-    lines = ["| Class | Blocks | Start k / n | Fitted k / n | Median abs. error, start -> fitted |",
-             "|---|---|---|---|---|"]
+    lines = ["| Class | Blocks | Start k / n | Fitted k / n | Median abs. error, start -> fitted "
+             "| n constrained? (objective rise at n +- 0.5) |",
+             "|---|---|---|---|---|---|"]
     for code, r in sorted(report.items()):
         if r.get("kept_start"):
             lines.append(f"| {code} {r['name']} | {r['blocks']} | {r['k']:.4g} / {r['n']:.2f} | "
-                         f"kept (fewer than {MIN_BLOCKS} blocks) | {r['median_abs_db']:.2f} dB |")
+                         f"kept (fewer than {MIN_BLOCKS} blocks) | {r['median_abs_db']:.2f} dB | |")
         else:
             lines.append(f"| {code} {r['name']} | {r['blocks']} | {r['start_k']:.4g} / "
                          f"{r['start_n']:.2f} | {r['k']:.4g} / {r['n']:.2f} | "
-                         f"{r['start_median_abs_db']:.2f} -> {r['median_abs_db']:.2f} dB |")
+                         f"{r['start_median_abs_db']:.2f} -> {r['median_abs_db']:.2f} dB | "
+                         f"{'weakly' if r['n_weak'] else 'yes'} ({r['n_profile_rise_db']:.2f} dB) |")
+    lines += ["", "Where n is only weakly constrained (the class is seen over a narrow range of "
+              "local incidence), k and n trade off and only their combination k cos^n is "
+              "determined; the fitted pair is still the best predictor over that range, but n "
+              "should not be read as a physical result."]
     return lines
 
 
@@ -378,7 +395,7 @@ def main() -> int:
                                                args.layover_bit, args.shadow_bit)
             contexts.append(FitContext(prep, orbit, utc, basis, ref["ref_beta0"], ref["ref_valid"]))
             print(f"basis {direction} {tile.name}", flush=True)
-    fitted, report, _ = run_fit(contexts, base, render)
+    fitted, report, _, _ = run_fit(contexts, base, render)
     args.out.mkdir(parents=True, exist_ok=True)
     write_table(args.out / "materials_fitted.txt", fitted,
                 "Fitted on calibration tiles by python -m validation.fit (k and n only).")

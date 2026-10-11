@@ -125,10 +125,16 @@ no-data.
     Two rounds: fit, re-render M with the fitted table, fit again.
   * Search: for each n (0.05 steps, then golden-section), k by a log-spaced scan
     and golden-section refinement.
+  * Identifiability is reported per class: the objective's rise at n ± 0.5
+    with k re-optimised. Below 0.1 dB, n is "weakly constrained" (e.g. a flat
+    lake seen over a few degrees of incidence), only the combination k·cosⁿ is
+    determined, and the fitted n is not interpreted physically. The fitted pair
+    is used as is either way: it is still the best predictor over that range.
   * Evidence the procedure recovers known parameters: the dry run fits a
     synthetic two-bounce "real" image with 4-look speckle from a truth table
-    and recovers forest, grassland, bare rock and water within |Δn| ≤ 0.15 and
-    10% in k (`docs/validation_dry_run.md`). Two earlier versions failed that
+    and recovers forest, grassland and bare rock within |Δn| ≤ 0.15 and 10% in
+    k; water's k and n are degenerate at the selected geometry, and its fitted
+    pair reproduces the true backscatter to 0.06 dB (`docs/validation_dry_run.md`). Two earlier versions failed that
     check and were changed before registration: 7-of-9 block purity let bright
     neighbours bias dark classes, and attributing multi-bounce signal to the
     block's own class biased water (lake → cliff → sensor paths).

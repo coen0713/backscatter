@@ -34,6 +34,20 @@ def test_recovers_parameters_with_multilook_speckle():
     assert r["k"] == pytest.approx(0.15, rel=0.05)
 
 
+def test_identifiability_diagnostic():
+    # Broad incidence range: n is constrained.
+    y, s, f = synthetic_blocks(0.15, 1.2)
+    assert not fit.fit_class(y, s, f)["n_weak"]
+    # One incidence angle for every block (a flat lake): only k cos^n is
+    # determined, so n must be flagged as weakly constrained.
+    rng = np.random.default_rng(3)
+    area = rng.uniform(0.8, 1.6, 2000)
+    f1 = {g: area * 0.75 ** g for g in fit.N_GRID}
+    r = fit.fit_class(0.15 * area * 0.75 ** 1.2, np.zeros(2000), f1)
+    assert r["n_weak"]
+    assert r["k"] * 0.75 ** r["n"] == pytest.approx(0.15 * 0.75 ** 1.2, rel=1e-3)
+
+
 def test_diffuse_interpolation_is_exact_for_single_angles():
     _, _, f = synthetic_blocks(0.1, 1.0, count=50)
     cos_ratio = f[1.0] / f[0.0]

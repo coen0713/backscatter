@@ -77,23 +77,37 @@ def fit_recovery(tiles: list[regions.Tile], render: Path, work: Path,
                                         material_table=truth_table, bounces=2)
             speckled = real.beta0 * rng.gamma(4.0, 0.25, real.beta0.shape)  # 4-look cells
             contexts.append(fit.FitContext(prep, orbit, utc, basis, speckled, real.valid))
-    _, report, _ = fit.run_fit(contexts, base, render)
+    _, report, _, pooled = fit.run_fit(contexts, base, render)
     by_code = {e.code: e for e in truth}
     ok = True
-    lines = ["| Class | Blocks | Truth k / n | Start k / n | Fitted k / n | Recovered? |",
-             "|---|---|---|---|---|---|"]
+    lines = ["| Class | Blocks | Truth k / n | Start k / n | Fitted k / n | n constrained? "
+             "(objective rise at n +- 0.5) | Prediction vs. truth (median abs.) | Recovered? |",
+             "|---|---|---|---|---|---|---|---|"]
     for code, r in sorted(report.items()):
         t = by_code[code]
         start = next(e for e in base if e.code == code)
         if r.get("kept_start"):
             lines.append(f"| {code} {r['name']} | {r['blocks']} | {t.k:.3g} / {t.n:.2f} | "
-                         f"{start.k:.3g} / {start.n:.2f} | kept (too few blocks) | n/a |")
+                         f"{start.k:.3g} / {start.n:.2f} | kept (too few blocks) | | | n/a |")
             continue
-        good = abs(r["n"] - t.n) <= 0.15 and abs(r["k"] / t.k - 1.0) <= 0.10
+        # Predicted block backscatter with the fitted vs. the true parameters,
+        # on the same blocks (noise-free basis, so this isolates the fit).
+        y, s, f = pooled[code].arrays()
+        pred_fit = metrics.to_db(s + r["k"] * fit.diffuse_at(f, r["n"]))
+        pred_true = metrics.to_db(s + t.k * fit.diffuse_at(f, t.n))
+        pred_err = float(np.median(np.abs(pred_fit - pred_true)))
+        params = abs(r["n"] - t.n) <= 0.15 and abs(r["k"] / t.k - 1.0) <= 0.10
+        # A class seen over a narrow incidence range (a flat lake) cannot
+        # separate k from n; there, recovering the backscatter is what counts.
+        equivalent = r["n_weak"] and pred_err <= 0.1
+        good = params or equivalent
         ok = ok and good
+        verdict = ("yes" if params else
+                   "yes: k and n degenerate, predictions agree" if equivalent else "**no**")
         lines.append(f"| {code} {r['name']} | {r['blocks']} | {t.k:.3g} / {t.n:.2f} | "
                      f"{start.k:.3g} / {start.n:.2f} | {r['k']:.3g} / {r['n']:.2f} | "
-                     f"{'yes' if good else '**no**'} |")
+                     f"{'weakly' if r['n_weak'] else 'yes'} ({r['n_profile_rise_db']:.2f} dB) | "
+                     f"{pred_err:.3f} dB | {verdict} |")
     return lines, ok
 
 
@@ -263,7 +277,10 @@ def main() -> int:
                   "`validation.fit` (single-bounce basis plus re-rendered multi-bounce part, "
                   "interior 90 m blocks without layover or "
                   "shadow, median-absolute-dB objective). Recovered means |n - n_true| <= 0.15 "
-                  "and k within 10%.\n"]
+                  "and k within 10%; or, where the data cannot constrain n (objective rises by "
+                  "less than 0.1 dB at n +- 0.5, e.g. a flat lake seen over a few degrees of "
+                  "incidence), that the fitted parameters predict the same backscatter as the "
+                  "true ones to within 0.1 dB.\n"]
         lines += fit_lines
         lines.append(f"\nFit stage: {time.time() - t_fit:.0f} s.")
     lines += ["", f"Self-consistency checks: **{'PASS' if ok else 'FAIL'}**. "

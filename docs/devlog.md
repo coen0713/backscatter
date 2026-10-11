@@ -159,3 +159,27 @@ for 0.003/2.0).
 Also changed: 90 m blocks now average linear power and then convert to dB
 (multilooking) everywhere, instead of averaging dB values; renders are skipped
 when the same command already completed, which makes long runs resumable.
+
+## 2026-10-11: real scene selection, and a degeneracy that looked like a bias
+
+**The draft selection rule could not be met.** Applied to the public catalogue,
+no ascending Sentinel-1A acquisition in the window covers the whole region (best
+97.2%, relative orbit 88; the east edge at 8.8-9.0 E is outside), and the
+nearest descending one misses 0.04% of edge points. The rule now takes
+acquisitions covering at least 95%, with uncovered tiles dropped by the existing
+footprint exclusion; decided before registration and before any imagery was
+obtained. An "acquisition" is a datatake: GRD products are 25 s slices, and the
+descending scene is two of them. A useful cross-check fell out: the pass
+finder's zero-Doppler times over the region centre, computed from the precise
+orbits alone, lie inside the catalogue's slice time ranges for both scenes.
+
+**Water stopped being recovered at the new geometry.** With the selected
+ascending pass (42 deg instead of 33 deg), the fit returned water at k = 0.0035,
+n = 2.51 instead of 0.003, 2.0. Without speckle it was exact on every tile; with
+speckle it drifted. A lake is flat, so its blocks span only a few degrees of
+incidence and k cos^n cannot separate k from n: the drifted pair predicts the
+same backscatter as the truth to 0.06 dB. That is a degeneracy, not a bias, and
+asking for the exact parameters was the wrong test. The fit now reports, per
+class, how much its objective rises at n +- 0.5; below 0.1 dB n is "weakly
+constrained" and is not interpreted, and the recovery check accepts a weakly
+constrained class whose predictions match the truth.
