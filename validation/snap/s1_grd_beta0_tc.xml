@@ -14,11 +14,12 @@
   externalDEMApplyEGM is false. No radiometric normalisation: beta0 is compared
   as-is (prereg, "Comparison quantity").
 
-  STATUS: written against the SNAP 9/10 operator parameters but NOT YET RUN.
-  To check during the calibration dry run with a real scene: the output band
-  names (expected "Beta0_VV" and "layover_shadow_mask") and the mask encoding
-  (expected bit flags: 1 = layover, 2 = shadow). validation/evaluate.py takes
-  both as options.
+  STATUS: run with SNAP 14.0 on the 2024-08-07 ascending scene, one calibration
+  block only (validation/snap_check.py). Output: band 1 = beta0, band 2 =
+  layover/shadow mask, no band descriptions (so validation/evaluate.py selects
+  bands by index), mask bit flags 1 = layover, 2 = shadow (3 = both), no nodata
+  value. Setting externalDEMApplyEGM to true changes the output, so false is
+  honoured and no geoid is added to the ellipsoidal DEM.
 -->
 <graph id="s1_grd_beta0_tc">
   <version>1.0</version>

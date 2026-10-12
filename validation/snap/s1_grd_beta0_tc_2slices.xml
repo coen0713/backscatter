@@ -1,8 +1,10 @@
 <!--
   Two-slice variant of s1_grd_beta0_tc.xml. The selected descending acquisition
-  (2024-08-06, datatake 06B64D) is two consecutive GRD slices; SliceAssembly
-  joins them before orbit correction, so the terrain correction sees one
-  continuous product. Everything after that is identical to the one-slice graph.
+  (2024-08-06, datatake 06B64D) is two consecutive GRD slices. Thermal noise is
+  removed per slice (SNAP refuses noise removal after slice assembly), then
+  SliceAssembly joins them and the orbit is applied, so the terrain correction
+  sees one continuous product. Calibration and terrain correction are identical
+  to the one-slice graph.
 
   Run:
     gpt validation/snap/s1_grd_beta0_tc_2slices.xml \
@@ -11,8 +13,9 @@
         -Pdem=build/validation/region_dem.tif \
         -Poutput=build/validation/snap_descending.tif
 
-  STATUS: written against the SNAP 9/10 operator parameters but NOT YET RUN
-  (see s1_grd_beta0_tc.xml for what to check).
+  STATUS: run with SNAP 14.0 on the 2024-08-06 descending slices, one
+  calibration block only (validation/snap_check.py); same output format as the
+  one-slice graph.
 -->
 <graph id="s1_grd_beta0_tc_2slices">
   <version>1.0</version>
@@ -28,11 +31,31 @@
       <file>${input2}</file>
     </parameters>
   </node>
+  <node id="ThermalNoiseRemoval1">
+    <operator>ThermalNoiseRemoval</operator>
+    <sources>
+      <sourceProduct refid="Read1"/>
+    </sources>
+    <parameters>
+      <selectedPolarisations>VV</selectedPolarisations>
+      <removeThermalNoise>true</removeThermalNoise>
+    </parameters>
+  </node>
+  <node id="ThermalNoiseRemoval2">
+    <operator>ThermalNoiseRemoval</operator>
+    <sources>
+      <sourceProduct refid="Read2"/>
+    </sources>
+    <parameters>
+      <selectedPolarisations>VV</selectedPolarisations>
+      <removeThermalNoise>true</removeThermalNoise>
+    </parameters>
+  </node>
   <node id="SliceAssembly">
     <operator>SliceAssembly</operator>
     <sources>
-      <sourceProduct refid="Read1"/>
-      <sourceProduct.1 refid="Read2"/>
+      <sourceProduct refid="ThermalNoiseRemoval1"/>
+      <sourceProduct.1 refid="ThermalNoiseRemoval2"/>
     </sources>
     <parameters>
       <selectedPolarisations>VV</selectedPolarisations>
@@ -48,20 +71,10 @@
       <continueOnFail>false</continueOnFail>
     </parameters>
   </node>
-  <node id="ThermalNoiseRemoval">
-    <operator>ThermalNoiseRemoval</operator>
-    <sources>
-      <sourceProduct refid="Apply-Orbit-File"/>
-    </sources>
-    <parameters>
-      <selectedPolarisations>VV</selectedPolarisations>
-      <removeThermalNoise>true</removeThermalNoise>
-    </parameters>
-  </node>
   <node id="Calibration">
     <operator>Calibration</operator>
     <sources>
-      <sourceProduct refid="ThermalNoiseRemoval"/>
+      <sourceProduct refid="Apply-Orbit-File"/>
     </sources>
     <parameters>
       <selectedPolarisations>VV</selectedPolarisations>

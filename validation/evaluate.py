@@ -212,8 +212,9 @@ def main() -> int:
     r.add_argument("--desc", type=Path)
     r.add_argument("--desc-time")
     r.add_argument("--mission", default="S1A")
-    r.add_argument("--beta0-band", default="Beta0_VV")
-    r.add_argument("--mask-band", default="layover_shadow_mask")
+    r.add_argument("--beta0-band", default="1",
+                   help="band name or 1-based index (SNAP 14 writes no names)")
+    r.add_argument("--mask-band", default="2")
     r.add_argument("--layover-bit", type=int, default=1)
     r.add_argument("--shadow-bit", type=int, default=2)
     r.add_argument("--table", type=Path, default=pipeline.MATERIAL_TABLE,

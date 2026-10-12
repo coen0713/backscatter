@@ -150,10 +150,15 @@ no-data.
 1. **Before registration** (allowed now): build the missing pipeline pieces using
    calibration tiles only, and dry-run end to end on calibration tiles.
    *Status: built and dry-run* (`validation/`, see `validation/README.md`;
-   results in `docs/validation_dry_run.md`). Still to do before registering:
-   run the SNAP graph on one real scene over **calibration tiles only** to
-   confirm its output band names and mask encoding (the graph has not been run
-   yet).
+   results in `docs/validation_dry_run.md`). *SNAP format confirmed*
+   (`python -m validation.snap_check`) on both selected acquisitions over one
+   calibration block only (7.8-8.0 E, 46.6-46.8 N, subset 0.01° inside its
+   edges): band 1 = beta0, band 2 = mask with bit 1 = layover and bit 2 =
+   shadow, no band names, so bands are selected by index. The mask encoding was
+   checked against terrain slope along the look direction alone, not against
+   the simulator, so no metric of section 4 has been computed on real data.
+   The two-slice graph had to remove thermal noise per slice before slice
+   assembly (SNAP refuses noise removal after it).
    *Scenes selected* by `python -m validation.select_scenes` (public catalogue
    metadata only, no imagery; see section 7). Their zero-Doppler times over
    46.5 N 8.0 E from the precise orbits (`bsar_eval passes`) fall inside the

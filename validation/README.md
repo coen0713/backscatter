@@ -68,9 +68,9 @@ python -m validation.evaluate run --set calibration \
 | Simulation + geocoding per tile | Working, ~5–9 s per tile; masks tested against a closed-form ridge in `tests/test_geocode.cpp` |
 | Metrics, pooling, SNAP-format loader | Working; unit tests in `validation/tests/`, plus identity and shift checks in the dry run |
 | Dry run | Passes; report in [`docs/validation_dry_run.md`](../docs/validation_dry_run.md), and on every CI run |
-| SNAP graph | **Written but never run.** To confirm with one real scene over calibration tiles: output band names (`Beta0_VV`, `layover_shadow_mask` expected) and mask encoding (bit 1 = layover, bit 2 = shadow expected); `evaluate run` takes both as options |
+| SNAP graphs | Run with SNAP 14.0 on both selected acquisitions, one calibration block only (`python -m validation.snap_check`). Band 1 = beta0, band 2 = mask, no band names (bands are selected by index), mask bit 1 = layover, bit 2 = shadow; confirmed against terrain slope alone, without the simulator. The two-slice graph removes thermal noise per slice before assembly (SNAP refuses the other order) |
 | Per-class `k`, `n` fitting | Built (`fit.py`); recovers known parameters for forest, grassland, bare rock and water from a synthetic two-bounce image with speckle (dry run). Needs real calibration data for the actual fit |
-| Real Sentinel-1 data | Needs a Copernicus Data Space account (not automated) |
+| Real Sentinel-1 data | Downloaded with `data/fetch_s1.py` (own Copernicus Data Space account); sizes match the catalogue. Only one calibration block has been processed |
 
 ## Dry-run quicklooks
 

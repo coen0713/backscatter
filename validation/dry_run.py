@@ -168,8 +168,9 @@ def main() -> int:
             rows.append((direction, tile, sim, ident, pert, time.time() - t0))
             print(f"{direction} {tile.name}: {time.time() - t0:.1f} s", flush=True)
 
-    # SNAP-format round trip: each simulation written as a SNAP-style GeoTIFF
-    # (Beta0_VV + layover_shadow_mask bit flags), read back through the real
+    # SNAP-format round trip: each simulation written as a GeoTIFF laid out like
+    # SNAP 14's output (band 1 beta0, band 2 layover/shadow bit flags, no band
+    # descriptions, no nodata value), read back through the real
     # loader, compared, and pooled. Must reproduce the identity result.
     ok = True
     snap_results: dict[str, list[dict]] = {}
@@ -184,13 +185,10 @@ def main() -> int:
         t = sim.grid.transform
         transform = rasterio.Affine(t.a, 0, t.c - pad * t.a, 0, t.e, t.f - pad * t.e)
         with rasterio.open(fake, "w", driver="GTiff", width=beta0.shape[1], height=beta0.shape[0],
-                           count=2, dtype="float32", crs=sim.grid.crs, transform=transform,
-                           nodata=0) as ds:
+                           count=2, dtype="float32", crs=sim.grid.crs, transform=transform) as ds:
             ds.write(beta0.astype(np.float32), 1)
             ds.write(mask.astype(np.float32), 2)
-            ds.set_band_description(1, "Beta0_VV")
-            ds.set_band_description(2, "layover_shadow_mask")
-        ref = evaluate.load_snap_reference(fake, sim.grid, "Beta0_VV", "layover_shadow_mask", 1, 2)
+        ref = evaluate.load_snap_reference(fake, sim.grid, "1", "2", 1, 2)
         snap_results.setdefault(direction, []).append(pipeline.compare(sim, **ref))
     snap_pooled = {d: evaluate.pooled(r) for d, r in snap_results.items()}
     for d, pp in snap_pooled.items():

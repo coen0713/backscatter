@@ -201,3 +201,26 @@ precipitation with Jungfraujoch below freezing, and it was raining during the
 now selected: ascending 2024-08-07 (datatake 06B719, 97.3% coverage) and
 descending 2024-08-06 (06B64D, two slices, full coverage). The geometry is the
 same relative orbits as before, so the dry-run incidence angles do not change.
+
+## 2026-10-12: SNAP's output format, confirmed on one calibration block
+
+With the scenes downloaded (sizes match the catalogue), the SNAP graphs were run
+for the first time, through `validation/snap_check.py`. It takes the production
+graph and adds only a Subset after terrain correction, so a single calibration
+block is computed and written; the subset is 0.01 deg inside the block, because
+the UTM bounding box of a lat/lon rectangle pokes outside it and three of its
+neighbours are held out.
+
+What SNAP 14 actually writes: band 1 beta0, band 2 the mask, no band names and
+no nodata value. The evaluation selected bands by name, so it now uses indices
+(and the dry run's fake SNAP file mimics the real layout). The mask encoding was
+checked without the simulator, so no pre-registered metric touched real data:
+in both passes, mask value 1 sits on slopes rising about 35 deg along the look
+direction (layover), value 2 on slopes falling about 43-45 deg (shadow), value 3
+on both. SNAP fetched the EGM96 grid during the run, which raised the question
+of whether it adds a geoid to our already-ellipsoidal DEM; re-running with
+`externalDEMApplyEGM` true changes every pixel, so false is honoured.
+
+The two-slice graph failed on first contact: SNAP refuses thermal-noise removal
+after SliceAssembly. Noise is now removed per slice, then the slices are joined
+and the orbit applied.
