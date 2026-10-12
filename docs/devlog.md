@@ -224,3 +224,17 @@ of whether it adds a geoid to our already-ellipsoidal DEM; re-running with
 The two-slice graph failed on first contact: SNAP refuses thermal-noise removal
 after SliceAssembly. Noise is now removed per slice, then the slices are joined
 and the orbit applied.
+
+The block used for the format check turned out not to contain the seam between
+the two descending slices: by the catalogue footprints the seam runs from
+46.95 N at 6.8 E to 46.54 N at 10.2 E, just north of it. Block 7.2-7.4 E,
+46.8-47.0 N (calibration) has it at 46.90 N, 8 km from either edge, so the check
+was repeated there three times: joined, and each slice alone. The joined product
+has data in every row; the slices alone stop at 46.897 and 46.896 N. Compared at
+90 m on the joined grid, away from the seam, the joined beta0 differs from each
+slice by -0.05 and -0.08 dB on average, and the masks agree on 99.8% of pixels.
+The per-block scatter (median 0.3-0.4 dB) is about twice what resampling the
+joined image through the same grids does to itself (0.16-0.23 dB); each SNAP
+run puts its output on its own grid and the two graphs order orbit and noise
+removal differently, so the speckle is interpolated differently. Nothing at the
+seam, and no offset worth the name.

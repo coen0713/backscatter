@@ -12,6 +12,8 @@ away from the sensor.
 
   python -m validation.snap_check --direction ascending --scene data/raw/S1A_..._06B719_AF33.zip
   python -m validation.snap_check --direction descending --scene data/raw/..._2F40.zip data/raw/..._8ECE.zip
+  # The descending slice seam crosses calibration block 7.2-7.4 E, 46.8-47.0 N:
+  python -m validation.snap_check --direction descending --block 7.2 46.8 7.4 47.0 --scene ...
 """
 
 from __future__ import annotations
@@ -54,11 +56,11 @@ INSET = 0.01  # degrees; keeps the UTM bounding box of the subset inside the blo
 HEADING_DEG = {"ascending": -12.4, "descending": -167.6}
 
 
-def check_block() -> tuple[float, float, float, float]:
+def check_block(block: tuple[float, ...]) -> tuple[float, float, float, float]:
     cal, _ = regions.split()
-    if BLOCK not in [regions.block_bounds(b) for b in cal]:
-        raise SystemExit(f"{BLOCK} is not a calibration block; refusing to process it")
-    w, s, e, n = BLOCK
+    if block not in [regions.block_bounds(b) for b in cal]:
+        raise SystemExit(f"{block} is not a calibration block; refusing to process it")
+    w, s, e, n = block
     return (w + INSET, s + INSET, e - INSET, n - INSET)
 
 
@@ -104,10 +106,14 @@ def main() -> int:
     p.add_argument("--direction", choices=sorted(HEADING_DEG), required=True)
     p.add_argument("--dem", type=Path, default=ROOT / "build" / "validation" / "region_dem.tif")
     p.add_argument("--out", type=Path, default=ROOT / "build" / "validation" / "snap_check")
+    p.add_argument("--block", type=float, nargs=4, default=BLOCK, metavar=("W", "S", "E", "N"),
+                   help="calibration block to process (default: the development area's)")
+    p.add_argument("--tag", default="", help="suffix for the output file name")
     args = p.parse_args()
-    region = check_block()
+    block = tuple(args.block)
+    region = check_block(block)
     args.out.mkdir(parents=True, exist_ok=True)
-    tif = args.out / f"snap_{args.direction}_calblock.tif"
+    tif = args.out / f"snap_{args.direction}_{block[0]:.1f}_{block[1]:.1f}{args.tag}.tif"
     if not tif.exists():
         if len(args.scene) > 2:
             raise SystemExit("one or two GRD products only")
@@ -122,10 +128,10 @@ def main() -> int:
             if t:
                 print(f"  band {i} tags: {t}")
         lonlat = transform_bounds(ds.crs, "EPSG:4326", *ds.bounds)
-        inside = (lonlat[0] >= BLOCK[0] and lonlat[1] >= BLOCK[1]
-                  and lonlat[2] <= BLOCK[2] and lonlat[3] <= BLOCK[3])
+        inside = (lonlat[0] >= block[0] and lonlat[1] >= block[1]
+                  and lonlat[2] <= block[2] and lonlat[3] <= block[3])
         print(f"  extent (lon/lat) {tuple(round(v, 4) for v in lonlat)}: "
-              f"{'inside' if inside else 'OUTSIDE'} calibration block {BLOCK}")
+              f"{'inside' if inside else 'OUTSIDE'} calibration block {block}")
         grid = prepare.Grid(ds.transform, ds.width, ds.height, ds.crs)
         bands = [ds.read(i) for i in range(1, ds.count + 1)]
 

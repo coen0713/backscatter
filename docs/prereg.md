@@ -158,7 +158,11 @@ no-data.
    checked against terrain slope along the look direction alone, not against
    the simulator, so no metric of section 4 has been computed on real data.
    The two-slice graph had to remove thermal noise per slice before slice
-   assembly (SNAP refuses noise removal after it).
+   assembly (SNAP refuses noise removal after it). The slice join was then
+   checked on calibration block 7.2-7.4 E, 46.8-47.0 N, which the seam crosses
+   at 46.90 N: the joined output has data in every row, each slice alone covers
+   only its side, and the joined beta0 matches each slice to -0.05 / -0.08 dB
+   mean (masks agree on 99.8% of pixels).
    *Scenes selected* by `python -m validation.select_scenes` (public catalogue
    metadata only, no imagery; see section 7). Their zero-Doppler times over
    46.5 N 8.0 E from the precise orbits (`bsar_eval passes`) fall inside the
