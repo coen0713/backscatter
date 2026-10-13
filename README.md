@@ -45,10 +45,13 @@ On real terrain, the ray-traced optical hillshade of a Copernicus GLO-30 tile
 and a mean difference of −0.002 ([report and side-by-side](docs/hillshade_comparison.md)),
 against criteria fixed before the first run (r ≥ 0.95, |bias| ≤ 0.02).
 
-Real-data validation against Sentinel-1 is the next phase. Its protocol (geographic
-held-out tiles, metrics, thresholds) is in [docs/validation.md](docs/validation.md),
-and [docs/prereg.md](docs/prereg.md) is to be committed before any real scene is
-rendered.
+Against real Sentinel-1 (two 2024 passes over the Bernese and Valais Alps,
+pre-registered in [docs/prereg.md](docs/prereg.md), scored once on held-out
+tiles), all five pre-registered criteria pass in both passes: layover and shadow
+agree with ESA SNAP at tolerant F1 0.95-0.99, predicted shadow is dark in the
+real image (AUC 0.95), bare-rock backscatter correlates at r = 0.88, and the
+median geolocation offset is under 0.5 pixel. The predictions that vegetation
+would correlate poorly were wrong: see [docs/validation.md](docs/validation.md).
 
 ## Performance
 

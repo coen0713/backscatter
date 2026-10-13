@@ -1,8 +1,8 @@
 # Validation
 
 Two layers: checks against closed-form theory, which need no real data and run in
-CI; and a comparison against real Sentinel-1 acquisitions, which is planned and
-whose protocol is fixed *before* any real data is examined.
+CI; and a comparison against real Sentinel-1 acquisitions, whose protocol was
+fixed and registered *before* any real data was examined.
 
 ## 1. Against theory (implemented, passing)
 
@@ -39,35 +39,99 @@ difference −0.002, mean absolute difference 0.030: **pass**
 gullies, where Horn's 3×3 operator smooths over 60 m and the ray tracer shades
 individual 30 m facets.
 
-## 2. Against real Sentinel-1 data (planned: Phase 5)
+## 2. Against real Sentinel-1 data (held-out results)
 
-The pipeline that will run it is in [`validation/`](../validation/README.md) and
-has been dry-run on calibration tiles ([report](validation_dry_run.md)).
-The comparison is pre-registered in [`prereg.md`](prereg.md). It must be filled in
-and committed before any real scene is rendered. Summary of the protocol:
+The pipeline is in [`validation/`](../validation/README.md) (dry run: [report](validation_dry_run.md); calibration fit: [report](validation_fit.md)). Headline: **all five pre-registered criteria pass in both passes; both radiometric predictions for vegetation were wrong** (see below).
 
-* **Data.** Sentinel-1 IW GRD scenes and POEORB orbits (Copernicus Data Space);
-  Copernicus GLO-30 DEM converted to ellipsoidal heights; OSM buildings for urban
-  tiles.
-* **Split first.** Tiles are assigned to *calibration* or *held-out* by a fixed
-  geographic rule, before anything is rendered. Scattering parameters may only be
-  fitted on calibration tiles. Every reported number comes from held-out tiles.
-* **Geometry metric.** IoU of simulated layover/shadow masks against masks
-  derived from the real acquisition geometry (ESA SNAP's layover-shadow mask,
-  computed from the same DEM and orbit), over mountainous tiles. This tests the
-  geometry engine, not the radiometry.
-* **Structure metric.** Correlation of simulated vs. real terrain-corrected
-  backscatter (dB), reported per land-cover class (ESA WorldCover). Never as one
-  blended number.
-* **Point targets.** Where possible, published corner-reflector calibration sites:
-  peak position error and (with SLC data) resolution.
+Pre-registered in [`prereg.md`](prereg.md) (registered at `0d5db40`;
+amendments 1 and 2). This is its section 6, step 4: every held-out metric,
+computed **once**, with the registered pipeline plus amendment 1 and the fitted
+parameters of section 8. Every number is reported, including the predictions
+that failed.
+
+* Run: `python -m validation.evaluate run --set held-out ... --table
+  validation/materials_fitted.txt`, 2026-10-13, commit `07ce1b0` (no code
+  change since `50602fb`), Clang 21.1 Release build. Raw generated report:
+  [`validation_heldout_report.md`](validation_heldout_report.md).
+* Scenes: ascending 2024-08-07 17:24 UTC (S1A, relative orbit 88, datatake
+  06B719); descending 2024-08-06 05:35 UTC (relative orbit 66, 06B64D, two
+  slices). Reference: ESA SNAP 14.0, graphs in `validation/snap/`.
+* Fitted table: `validation/materials_fitted.txt`, SHA-256
+  `d77d546c4cde87c8378905d03527cbdef08607e03393db8fcf37d8347710e0f2` (LF).
+
+### Tiles
+
+85 of 100 held-out tiles kept in each pass (77 mountainous, used for G1-G3).
+The 15 excluded tiles all lie partly outside the ascending footprint (the
+region's east edge, 8.7-9.0 E; the ascending scene covers 97.3% of the region)
+and are dropped from both passes (section 3, amendment 1): N46.80_E008.70,
+N46.90_E008.70, N46.30-N46.50 and N46.80-N46.90 at E008.80, N46.00-N46.50 and
+N46.80-N46.90 at E008.90. No tile was excluded for DEM no-data or water.
+
+### Pre-registered criteria
+
+| # | Metric | Threshold | Ascending | Descending | Result |
+|---|---|---|---|---|---|
+| G1 | Layover vs. SNAP, 1-cell-tolerant F1 (strict IoU) | F1 ≥ 0.60 | **0.981** (0.731) | **0.985** (0.761) | pass |
+| G2 | Shadow vs. SNAP, 1-cell-tolerant F1 (strict IoU) | F1 ≥ 0.60 | **0.974** (0.606) | **0.952** (0.579) | pass |
+| G3 | Shadow vs. real β⁰, AUC | ≥ 0.85 | **0.955** | **0.950** | pass |
+| R1 | Bare rock / sparse vegetation, Pearson r (90 m blocks, dB) | ≥ 0.50 | **0.876** (55,188 blocks) | **0.883** | pass |
+| L1 | Median geolocation offset (east, north) | ≤ 1 px each | **(+0.37, +0.49) px** | **(+0.15, +0.07) px** | pass |
+
+All five pre-registered criteria pass in both passes. Per tile, L1 exceeds
+1 px in one direction on 3 of 85 ascending tiles (largest 1.22 px east) and 1
+of 85 descending tiles (1.02 px); the criterion is on the median.
+
+### Reported predictions
+
+| # | Class | Prediction | Ascending r | Descending r | Prediction |
+|---|---|---|---|---|---|
+| R2 | Grassland (WorldCover 30) | 0.3 ≤ r ≤ 0.6 | 0.860 (267,011 blocks) | 0.861 | **wrong** (higher) |
+| R3 | Tree cover (WorldCover 10) | r < 0.3 ("predicted to fail": no volume scattering) | 0.871 (321,425 blocks) | 0.917 | **wrong** (far higher) |
+
+Both radiometric predictions were wrong in the same direction: the model
+correlates with the real image far better on vegetated classes than predicted.
+
+### Other classes (not pre-registered; same metric)
+
+| Class | Ascending r | Descending r | Blocks |
+|---|---|---|---|
+| Cropland (40) | 0.277 | 0.318 | 6,041 |
+| Built-up (50) | 0.240 | 0.253 | 8,780 |
+| Permanent water (80) | 0.707 | 0.717 | 19,656 |
+| Moss and lichen (100) | 0.900 | 0.894 | 10,111 |
+
+### Interpretation (after the fact, not tested)
+
+* **Geometry.** Layover and shadow agree with SNAP's independent
+  implementation at F1 0.95-0.99 once a 30 m tolerance is allowed; strict IoU
+  is 0.58-0.76, the range the dry run showed a one-cell misregistration alone
+  produces. Predicted shadow is dark in the real image (AUC 0.95), and the
+  median geolocation offset is well under a pixel in both passes.
+* **Why R2 and R3 were wrong.** The R metrics correlate block means pooled over
+  mountainous tiles, so most of their variance is terrain: local incidence and
+  foreshortening move β⁰ by tens of dB between slopes facing towards and away
+  from the sensor, and the geometric model gets that right whatever the class.
+  The predictions reasoned about scattering mechanism (no volume term for
+  forest) but the metric is dominated by geometry, so it does not test the
+  mechanism. A test that would (for example, correlation after removing the
+  local-incidence trend, or within narrow incidence bins) was not
+  pre-registered, and any such analysis now is exploratory.
+* The fitted tree-cover exponent sat at the edge of the search range (n = 0,
+  section 8); forest brightness that depends little on local incidence is what
+  volume scattering looks like, and the fit absorbed it into k and n.
+* Cropland and built-up are the weak classes (r ≈ 0.25-0.32): both are flat
+  valley floors with little terrain variance to correlate with, and built-up
+  backscatter is dominated by double bounce from structures smaller than the
+  30 m DEM resolves.
 
 ## 3. Guarding against known mistakes
 
-* **No circular tuning.** Material parameters are frozen in `scene/material.cpp`
-  as literature values today. Any change fitted to real data must cite the
-  calibration tiles it was fitted on.
+* **No circular tuning.** Permittivities and roughness are literature values.
+  Only each class's diffuse `k` and `n` were fitted, on calibration tiles only,
+  and recorded in the prereg before any held-out tile was rendered.
 * **Pre-registration.** Thresholds are written down before results exist.
-* **Failures get their own section.** Vegetation (no volume scattering) is
-  expected to fail the structure metric and will be reported separately, not
-  averaged into the headline.
+* **Failures get their own section.** Vegetation (no volume scattering) was
+  predicted to fail the structure metric and is reported separately, never
+  averaged into a headline. It did not fail; the prediction did (see "Why R2
+  and R3 were wrong").

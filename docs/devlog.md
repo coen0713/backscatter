@@ -238,3 +238,23 @@ joined image through the same grids does to itself (0.16-0.23 dB); each SNAP
 run puts its output on its own grid and the two graphs order orbit and noise
 removal differently, so the speckle is interpolated differently. Nothing at the
 seam, and no offset worth the name.
+
+## 2026-10-13: registered, fitted, scored once
+
+Registered at `0d5db40`. Starting the fit turned up a gap between the text and
+the code: section 3 excludes a tile entirely if it fails in either scene, but
+the fit applied no tile exclusions and the evaluation applied them per pass.
+Fixed before the fit ran, as amendment 1. The fit (96 of 100 calibration
+tiles, 3 h 41 min) cut the median block error to 1.2-2.3 dB for every class;
+tree cover's exponent went to the bottom of the search range (n = 0).
+
+The held-out run (85 of 100 tiles per pass, 47 min) passes all five
+pre-registered criteria in both passes: tolerant F1 0.95-0.99 for layover and
+shadow against SNAP, shadow AUC 0.95, bare-rock r 0.88, median offset under
+0.5 px. The two vegetation predictions were wrong: grassland r 0.86 (predicted
+0.3-0.6) and tree cover r 0.87-0.92 (predicted below 0.3). The likely reason is
+that the metric, pooled over mountains, is dominated by terrain geometry rather
+than scattering mechanism, so it never tested what the predictions were about.
+A metric that would (after removing the local-incidence trend) was not
+pre-registered; anything along those lines is now exploratory and has to be
+labelled so.
