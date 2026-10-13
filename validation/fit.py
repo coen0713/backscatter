@@ -25,6 +25,8 @@ Blocks used: interior blocks (the class on all 9 cells and on a 1-cell ring
 around them), every cell valid in simulation and
 reference, no layover and no shadow cell (layover mixes classes; shadow has no
 signal). Snow and ice (70) are excluded, as in the radiometry metrics.
+Only tiles that pass the section 3 tile exclusions are used, and a tile
+failing them in either pass is dropped from both (prereg amendment 1).
 
 Objective (pre-registered): the median absolute dB error over those blocks,
 pooled over all calibration tiles and both passes; minimised over k for each
@@ -117,6 +119,7 @@ class Basis:
     diffuse: dict[float, np.ndarray]  # D1_n
     usable: np.ndarray              # valid, no layover, no shadow
     worldcover: np.ndarray
+    valid: np.ndarray               # simulation footprint (for the tile exclusions)
 
 
 def _check_calibration(prep: pipeline.PreparedTile) -> None:
@@ -142,7 +145,7 @@ def render_basis(prep: pipeline.PreparedTile, orbit: Path, utc: str, render: Pat
                                  material_table=table, bounces=1)
         diffuse[n] = np.maximum(r.beta0 - spec.beta0, 0.0)
     usable = spec.valid & ~spec.layover & ~spec.shadow
-    return Basis(prep.tile, spec.beta0, diffuse, usable, prep.worldcover)
+    return Basis(prep.tile, spec.beta0, diffuse, usable, prep.worldcover, spec.valid)
 
 
 def multi_bounce(prep: pipeline.PreparedTile, orbit: Path, utc: str, render: Path,
@@ -384,6 +387,7 @@ def main() -> int:
     render = exe(args.build, "apps", "bsar_render")
     base = read_table(args.table)
     contexts = []
+    per_pass: dict[str, dict[str, list[str]]] = {}
     for direction, snap, utc in (("ascending", args.asc, args.asc_time),
                                  ("descending", args.desc, args.desc_time)):
         if snap is None:
@@ -395,13 +399,28 @@ def main() -> int:
             ref = evaluate.load_snap_reference(snap, prep.grid, args.beta0_band, args.mask_band,
                                                args.layover_bit, args.shadow_bit)
             contexts.append(FitContext(prep, orbit, utc, basis, ref["ref_beta0"], ref["ref_valid"]))
+            per_pass.setdefault(direction, {})[tile.name] = pipeline.exclusion_reasons(
+                prep.dem, prep.worldcover, basis.valid, ref["ref_valid"])
             print(f"basis {direction} {tile.name}", flush=True)
+    # Section 3 tile exclusions, applied before any comparison; a tile failing
+    # in either pass is dropped from both.
+    excluded = {t: r for t, r in pipeline.combine_exclusions(per_pass).items() if r}
+    contexts = [c for c in contexts if c.prep.tile.name not in excluded]
+    for t, r in sorted(excluded.items()):
+        print(f"excluded {t}: {'; '.join(r)}", flush=True)
     fitted, report, _, _ = run_fit(contexts, base, render)
     args.out.mkdir(parents=True, exist_ok=True)
     write_table(args.out / "materials_fitted.txt", fitted,
                 "Fitted on calibration tiles by python -m validation.fit (k and n only).")
-    (args.out / "fit.json").write_text(json.dumps(report, indent=1))
+    (args.out / "fit.json").write_text(json.dumps({"classes": report, "excluded_tiles": excluded},
+                                                  indent=1))
     lines = ["# Per-class fit (calibration tiles)\n", header("python -m validation.fit", args.build)]
+    if excluded:
+        lines.append(f"Tiles: {len(tiles) - len(excluded)} of {len(tiles)} calibration tiles; "
+                     "excluded by section 3 (in either pass):\n")
+        lines += [f"* {t}: {'; '.join(r)}" for t, r in sorted(excluded.items())] + [""]
+    else:
+        lines.append(f"Tiles: all {len(tiles)} calibration tiles.\n")
     lines += report_lines(report)
     (args.out / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))

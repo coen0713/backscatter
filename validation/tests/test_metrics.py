@@ -101,3 +101,25 @@ def test_split_is_the_registered_one():
     assert names == quoted
     assert len(regions.calibration_tiles()) == 100
     assert regions.Tile(9, 5).name == "N46.50_E007.90"
+
+
+def test_tile_excluded_in_either_pass_is_excluded_from_both():
+    from validation import pipeline
+    combined = pipeline.combine_exclusions({
+        "ascending": {"A": ["not fully inside both footprints"], "B": []},
+        "descending": {"A": [], "B": []}})
+    assert combined == {"A": ["ascending: not fully inside both footprints"], "B": []}
+
+
+def test_exclusion_reasons():
+    from validation import pipeline, prepare
+    dem = np.zeros((10, 10))
+    wc = np.full((10, 10), 30)
+    ok = np.ones((10, 10), bool)
+    assert pipeline.exclusion_reasons(dem, wc, ok, ok) == []
+    part = ok.copy()
+    part[0, 0] = False
+    assert pipeline.exclusion_reasons(dem, wc, ok, part) == ["not fully inside both footprints"]
+    dem[:1] = prepare.NODATA                      # 10% no-data
+    wc[:6] = pipeline.WATER                       # 60% water
+    assert len(pipeline.exclusion_reasons(dem, wc, ok, ok)) == 2

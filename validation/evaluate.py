@@ -148,6 +148,7 @@ def run(args: argparse.Namespace) -> int:
         pipeline.check_allowed(t)
     render = exe(args.build, "apps", "bsar_render")
     report: dict = {}
+    per_pass: dict[str, list[dict]] = {}
     for direction, snap, utc in (("ascending", args.asc, args.asc_time),
                                  ("descending", args.desc, args.desc_time)):
         if snap is None:
@@ -161,6 +162,13 @@ def run(args: argparse.Namespace) -> int:
                                       args.layover_bit, args.shadow_bit)
             results.append(pipeline.compare(sim, **ref))
             print(f"{direction} {tile.name}", flush=True)
+        per_pass[direction] = results
+    # A tile excluded in either pass is excluded from both (section 3).
+    combined = pipeline.combine_exclusions(
+        {d: {r["tile"]: r["exclusions"] for r in rs} for d, rs in per_pass.items()})
+    for direction, results in per_pass.items():
+        for r in results:
+            r["exclusions"] = combined[r["tile"]]
         p = pooled(results)
         report[direction] = {"pooled": p, "verdicts": verdicts(p),
                              "tiles": [{k: v for k, v in r.items() if k != "_arrays"}

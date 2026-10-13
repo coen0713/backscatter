@@ -138,18 +138,34 @@ def simulate_tile(tile: regions.Tile, orbit: Path, utc: str, render: Path, work:
                        material_table=material_table, **kwargs)
 
 
-def tile_exclusions(sim: TileProducts, ref_valid: np.ndarray) -> list[str]:
-    """Pre-registered tile-level exclusions (section 3). Empty list = keep."""
+def exclusion_reasons(dem: np.ndarray, worldcover: np.ndarray, sim_valid: np.ndarray,
+                      ref_valid: np.ndarray) -> list[str]:
+    """Pre-registered tile-level exclusions (section 3) for one pass. Empty list = keep."""
     reasons = []
-    dem_nodata = np.mean(sim.dem == prepare.NODATA)
+    dem_nodata = np.mean(dem == prepare.NODATA)
     if dem_nodata > 0.05:
         reasons.append(f"DEM no-data {dem_nodata:.1%} > 5%")
-    water = np.mean(sim.worldcover == WATER)
+    water = np.mean(worldcover == WATER)
     if water > 0.5:
         reasons.append(f"water {water:.1%} > 50%")
-    if not (sim.valid & ref_valid).all():
+    if not (sim_valid & ref_valid).all():
         reasons.append("not fully inside both footprints")
     return reasons
+
+
+def tile_exclusions(sim: TileProducts, ref_valid: np.ndarray) -> list[str]:
+    return exclusion_reasons(sim.dem, sim.worldcover, sim.valid, ref_valid)
+
+
+def combine_exclusions(per_pass: dict[str, dict[str, list[str]]]) -> dict[str, list[str]]:
+    """Section 3 excludes a tile "entirely" if it fails in either scene, so the
+    per-pass reasons {direction: {tile: reasons}} become {tile: reasons} for
+    every pass, each reason tagged with the pass it came from."""
+    out: dict[str, list[str]] = {}
+    for direction, tiles in per_pass.items():
+        for tile, reasons in tiles.items():
+            out.setdefault(tile, []).extend(f"{direction}: {r}" for r in reasons)
+    return out
 
 
 def compare(sim: TileProducts, ref_beta0: np.ndarray, ref_layover: np.ndarray,

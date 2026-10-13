@@ -215,4 +215,20 @@ no-data.
 
 ## Amendments
 
-(none)
+1. **2026-10-13: section 3 tile exclusions applied as written, in the fit and
+   across passes.** Bug fix under the section 5 rule, made before the fit was
+   run and before any held-out tile was rendered, so no result could influence
+   it. Section 3 says the exclusions apply "before any comparison" and that a
+   tile outside *either* scene's footprint is excluded entirely. At the
+   registered commit, `validation.fit` applied no tile exclusions (it pooled
+   every calibration tile and filtered only per block), and
+   `validation.evaluate` applied them to each pass separately, so a tile
+   outside one footprint still counted in the other pass. Demonstrated on
+   calibration tiles from the catalogue footprints alone (no image data):
+   N46.70_E008.80, N46.60_E008.90 and N46.70_E008.90 lie partly outside the
+   ascending footprint, and the registered fit would have used them in both
+   passes. Fix: `pipeline.combine_exclusions`; the fit drops excluded tiles
+   from both passes and lists them in its report, and the evaluation combines
+   exclusions across passes before pooling. Commit: the one that adds this
+   amendment (see `git log docs/prereg.md`). No held-out metric exists yet, so
+   there is no before/after pair to report.
