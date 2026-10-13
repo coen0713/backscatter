@@ -261,3 +261,12 @@ Notes, recorded before any held-out result:
    exclusions across passes before pooling. Commit: the one that adds this
    amendment (see `git log docs/prereg.md`). No held-out metric exists yet, so
    there is no before/after pair to report.
+
+2. **2026-10-13: checksum of the fitted table (clerical).** The SHA-256 in
+   section 8 (`a06f8b6e…`) is of the table as written on Windows, with CRLF
+   line endings. The repository stores text with LF endings
+   (`.gitattributes`), so every checkout of `validation/materials_fitted.txt`
+   hashes to `d77d546c4cde87c8378905d03527cbdef08607e03393db8fcf37d8347710e0f2`.
+   The two files are identical apart from line endings (checked with the CR
+   characters removed); no parameter changed. The LF checksum is the one to
+   verify against.
