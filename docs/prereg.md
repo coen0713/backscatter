@@ -211,7 +211,36 @@ no-data.
 
 ## 8. Fitted parameters
 
-*(Filled in at step 3, before any held-out rendering.)*
+Fitted on 2026-10-13 by `python -m validation.fit` at commit `50602fb`
+(registered pipeline plus amendment 1), against the SNAP references of both
+selected acquisitions, before any held-out tile was rendered. Full report:
+`docs/validation_fit.md`. Fitted table, used unchanged for every held-out
+number: `validation/materials_fitted.txt` (SHA-256
+`a06f8b6ea5a9cd8008d353c23ad9e77834ef301bcb368cc309181fad603713c6`).
+
+Tiles: 96 of 100 calibration tiles. Excluded by section 3, all for lying
+partly outside the ascending footprint: N46.60_E008.80, N46.60_E008.90,
+N46.70_E008.80, N46.70_E008.90.
+
+| Class | Blocks | Start k / n | Fitted k / n | Median abs. error, start → fitted | n constrained? (rise at n ± 0.5) |
+|---|---|---|---|---|---|
+| 10 tree cover | 326,997 | 0.25 / 0.60 | 0.0511 / 0.00 | 4.05 → 1.74 dB | yes (0.17 dB) |
+| 30 grassland | 235,808 | 0.12 / 1.50 | 0.0538 / 0.45 | 2.46 → 1.80 dB | yes (0.14 dB) |
+| 40 cropland | 15,630 | 0.12 / 1.50 | 0.0931 / 1.04 | 1.25 → 1.20 dB | weakly (0.01 dB) |
+| 50 built-up | 1,946 | 0.06 / 1.50 | 0.426 / 1.19 | 9.99 → 2.30 dB | weakly (0.02 dB) |
+| 60 bare / sparse | 29,049 | 0.10 / 2.00 | 0.166 / 1.05 | 3.99 → 1.77 dB | weakly (0.10 dB) |
+| 80 water | 36,728 | 0.003 / 2.00 | 0.0154 / 2.98 | 5.43 → 1.45 dB | weakly (0.01 dB) |
+| 100 moss and lichen | 687 | 0.08 / 2.00 | 0.131 / 1.30 | 3.19 → 1.39 dB | weakly (0.06 dB) |
+
+Classes not listed (20 shrubland, 70 snow and ice, 90 herbaceous wetland) had
+no usable blocks or are excluded, and keep their starting values.
+
+Notes, recorded before any held-out result:
+* Tree cover's n is at the lower end of the search range (0) and water's
+  close to the upper end (3); their unconstrained optima may lie outside it.
+  The range is pre-registered and is not changed after the fact.
+* For the weakly constrained classes only k·cosⁿ over the observed incidence
+  range is determined (section 5); their n is not interpreted physically.
 
 ## Amendments
 
