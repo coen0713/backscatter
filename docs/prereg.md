@@ -1,11 +1,8 @@
 # Pre-registration: simulated vs. real Sentinel-1
 
-> **Status: PROPOSAL, NOT YET REGISTERED.** Everything below is a concrete
-> proposal for review. To register: change anything you disagree with, set the
-> status line to `REGISTERED`, fill in the two "recorded at registration"
-> fields (scene IDs, pipeline commit), and commit this file on its own. That
-> commit's hash is the registration. From then on, changes go only in
-> "Amendments", with a date and a reason; nothing above it is edited.
+> **Status: REGISTERED on 2026-10-13.** The registration is the commit that
+> set this line (this file changed on its own). From then on, changes go only
+> in "Amendments", with a date and a reason; nothing above it is edited.
 >
 > **Nothing in the held-out set may be rendered, downloaded for inspection, or
 > looked at before registration.** Building the pipeline on calibration tiles
@@ -194,7 +191,23 @@ no-data.
     descending acquisition. The next closest eligible acquisitions, listed above, pass:
     ascending 1.7 mm (Guetsch) / 11.7 mm (Pilatus) in the preceding 72 h with no
     station at or below +1 °C during wet hours; descending dry (0 / 0 mm).
-* Pipeline commit: *to fill*
+* Pipeline commit: `fe650d6010c399249f1de26204e82583635ef564` (CI passed,
+  including the calibration dry run). Every held-out number is produced with
+  this commit plus the parameters fitted in section 8.
+* Software that is not in the repository: ESA SNAP 14.0 (`gpt`; graphs in
+  `validation/snap/`).
+* SHA-256 of the downloaded products (`data/raw/`, as delivered by the
+  Copernicus Data Space; sizes match the catalogue):
+  * `7756e286bbc40cbfd6aa998695fb4470072b7126a8a2d4472e6ddfd161ec9453`
+    `..._06B64D_2F40.zip`
+  * `6ef21421c6114943aa89f372321fe5d4856cf6f44595e04dbd9cb961ab7f1ad8`
+    `..._06B64D_8ECE.zip`
+  * `91be25125b9ff0fe7f8ac5f62b94dea80992b7d79966d6a880e9a1f68a271943`
+    `..._06B719_AF33.zip`
+* Real data looked at before registration: SNAP output for two calibration
+  blocks only (7.8-8.0 E, 46.6-46.8 N, both passes; 7.2-7.4 E, 46.8-47.0 N,
+  descending), for format and slice-join checks (section 6, step 1). No
+  section 4 metric has been computed on real data.
 
 ## 8. Fitted parameters
 
