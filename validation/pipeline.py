@@ -6,7 +6,8 @@ products resampled to the tile's UTM 30 m grid, plus WorldCover and the DEM.
 compare: the pre-registered metrics between a simulated tile and a reference
 (real SNAP output, or a synthetic stand-in during the dry run).
 
-Held-out tiles are refused unless docs/prereg.md is marked REGISTERED.
+Held-out tiles are refused unless docs/prereg.md is marked REGISTERED, and
+round-2 test tiles unless docs/prereg_angular.md is.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from validation import metrics, prepare, regions
 
 ROOT = Path(__file__).resolve().parent.parent
 PREREG = ROOT / "docs" / "prereg.md"
+PREREGS = {"bernese": PREREG, "graubuenden": ROOT / "docs" / "prereg_angular.md"}
 MATERIAL_TABLE = Path(__file__).resolve().parent / "materials_worldcover.txt"
 
 MARGIN_DEG = 0.05      # terrain outside the tile that can shadow or lay over into it
@@ -33,13 +35,22 @@ SNOW_ICE = 70
 WATER = 80
 
 
-def prereg_registered() -> bool:
-    text = PREREG.read_text(encoding="utf-8")
+def prereg_registered(path: Path = PREREG) -> bool:
+    text = path.read_text(encoding="utf-8")
     status = re.search(r"\*\*Status:\s*([^*]+)\*\*", text)
     return bool(status) and status.group(1).strip().upper().startswith("REGISTERED")
 
 
 def check_allowed(tile: regions.Tile) -> None:
+    if not tile.in_region:
+        raise ValueError(f"tile ({tile.i}, {tile.j}) lies outside region {tile.region}")
+    if tile.region != "bernese":
+        # Round 2: every tile is a test tile, refused until its prereg is registered.
+        if not prereg_registered(PREREGS[tile.region]):
+            raise PermissionError(
+                f"{tile.name} is a test tile of region {tile.region}; "
+                f"{PREREGS[tile.region].name} is not registered yet.")
+        return
     if tile in regions.calibration_tiles():
         return
     if not prereg_registered():

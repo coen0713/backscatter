@@ -39,9 +39,7 @@ PRODUCT_TYPE = "IW_GRDH_1S"
 PLATFORM = "A"  # Sentinel-1A (prereg, section 2)
 MIN_COVERAGE = 0.95
 # Region bounds (W, S, E, N); the snow-check station set has the same name.
-REGIONS = {"bernese": (regions.LON_RANGE[0], regions.LAT_RANGE[0],  # round 1, docs/prereg.md
-                       regions.LON_RANGE[1], regions.LAT_RANGE[1]),
-           "graubuenden": (9.0, 46.0, 11.0, 47.0)}                  # round 2, docs/prereg_angular.md
+REGIONS = {name: (lon[0], lat[0], lon[1], lat[1]) for name, (lon, lat) in regions.REGIONS.items()}
 
 
 def query(bounds: tuple[float, float, float, float] = REGIONS["bernese"],

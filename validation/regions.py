@@ -19,6 +19,10 @@ LAT_RANGE = (46.0, 47.0)
 TILE = 0.1
 BLOCK = 0.2
 DEFAULT_SEED = 20261010
+# Regions by name: (lon range, lat range). "bernese" is round 1 (docs/prereg.md);
+# "graubuenden" is round 2 (docs/prereg_angular.md), where every tile is a test
+# tile. The calibration / held-out split applies to round 1 only.
+REGIONS = {"bernese": (LON_RANGE, LAT_RANGE), "graubuenden": ((9.0, 11.0), (46.0, 47.0))}
 
 # Areas already looked at during development (must not be held out):
 # the hillshade comparison crop (scripts/compare_hillshade.py).
@@ -31,12 +35,20 @@ class Tile:
 
     i: int  # longitude index
     j: int  # latitude index
+    region: str = "bernese"
 
     @property
     def bounds(self) -> tuple[float, float, float, float]:
-        w = round(LON_RANGE[0] + self.i * TILE, 4)
-        s = round(LAT_RANGE[0] + self.j * TILE, 4)
+        (lon0, _), (lat0, _) = REGIONS[self.region]
+        w = round(lon0 + self.i * TILE, 4)
+        s = round(lat0 + self.j * TILE, 4)
         return (w, s, round(w + TILE, 4), round(s + TILE, 4))
+
+    @property
+    def in_region(self) -> bool:
+        (lon0, lon1), (lat0, lat1) = REGIONS[self.region]
+        return (0 <= self.i < round((lon1 - lon0) / TILE)
+                and 0 <= self.j < round((lat1 - lat0) / TILE))
 
     @property
     def name(self) -> str:
@@ -90,3 +102,17 @@ def held_out_tiles(seed: int = DEFAULT_SEED) -> list[Tile]:
     """Do not render, download for inspection, or look at these before registration."""
     _, held = split(seed)
     return sorted(t for b in held for t in block_tiles(b))
+
+
+def region_tiles(region: str) -> list[Tile]:
+    """Every tile of a region."""
+    (lon0, lon1), (lat0, lat1) = REGIONS[region]
+    return [Tile(i, j, region) for j in range(round((lat1 - lat0) / TILE))
+            for i in range(round((lon1 - lon0) / TILE))]
+
+
+def tile_by_name(name: str, region: str) -> Tile:
+    for t in region_tiles(region):
+        if t.name == name:
+            return t
+    raise KeyError(f"{name} is not a tile of region {region}")
