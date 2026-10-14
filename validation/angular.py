@@ -53,7 +53,7 @@ BOOT_SEED = 20261013
 
 # Part A predictions and Part B thresholds (section 4).
 PRED_A = {"A1": (1.3, 2.5), "A2_min": 2.0, "A3_abs": 2.0}
-THRESH_B = {"A1": (0.75, 1.33), "A2_abs": 2.0, "A3_abs": 1.5}
+THRESH_B = {"A1": (0.75, 1.33), "A2_abs": 2.0, "A3_abs": 2.0}
 
 
 # ------------------------------------------------------------ blocks

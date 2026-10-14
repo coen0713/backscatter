@@ -137,7 +137,8 @@ def test_verdicts():
     assert angular.part_b(fixed, ok)["succeeds"]
     regress = {"ascending": {"G1": True, "L1": False}, "descending": {"G1": True, "L1": True}}
     assert not angular.part_b(fixed, regress)["succeeds"]
-    assert not angular.part_b({d: _res(1.1, -1.0, 1.6) for d in fixed}, ok)["succeeds"]
+    assert angular.part_b({d: _res(1.1, -1.0, 1.9) for d in fixed}, ok)["succeeds"]
+    assert not angular.part_b({d: _res(1.1, -1.0, 2.1) for d in fixed}, ok)["succeeds"]
 
 
 def test_round2_tiles_are_guarded():

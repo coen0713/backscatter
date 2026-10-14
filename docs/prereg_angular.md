@@ -71,7 +71,7 @@ next to it.
 |---|---|---|---|---|
 | A1 | Angular slope ratio | Per class: slope of simulated dB against local incidence, divided by the real slope, by least squares on blocks with local incidence 20-60° | **1.3 to 2.5** for each of the four classes (exploration: 1.4-2.2) | **0.75 to 1.33** for each class |
 | A2 | Sensor-facing bias | Per class: median of (simulated − real dB) over blocks with local incidence below 30° | **≥ +2 dB** for at least three of the four classes (exploration, 20-30° bin: +3.5 to +7.7 dB) | **\|bias\| ≤ 2 dB** for each class |
-| A3 | Mid-range bias | Per class: median of (simulated − real dB) over blocks with local incidence 40-60° | **\|bias\| ≤ 2 dB** for each class (exploration: within about 1 dB; wider here because k and n were fitted on another region) | **\|bias\| ≤ 1.5 dB** for each class |
+| A3 | Mid-range bias | Per class: median of (simulated − real dB) over blocks with local incidence 40-60° | **\|bias\| ≤ 2 dB** for each class (exploration: within about 1 dB; wider here because k and n were fitted on another region) | **\|bias\| ≤ 2 dB** for each class (set at 2 dB, not 1.5 dB, after the development run: tree cover sits at +1.4 to +1.5 dB on round-1 data, a level offset rather than an angular-shape error) |
 | A4 | Correlation beyond incidence | Per class: Pearson r of simulated against real dB, each with its own local-incidence trend removed (mean in 2° bins of at least 30 blocks, interpolated; blocks outside the binned range dropped), as in the exploratory analysis | Reported, no prediction (exploration, with layover and shadow blocks kept: 0.44-0.63) | Reported; compared with the current model's value on the same blocks |
 | N | Non-regression | Round-1 metrics G1, G2, G3, R1 and L1, computed exactly as round 1 on this region's test tiles | Reported for the current model (as a transfer check of round 1) | **Each must pass its round-1 threshold** |
 
@@ -102,6 +102,14 @@ Every number is reported for both models in Part B, and for both passes.
 * **Development evidence** required before registering Part B: the revised
   model's A1-A3 on round-1 data, labelled as development results (not tests),
   plus the round-1 dry run and the theory checks still passing.
+* **Development baseline (current model, round-1 data, all 181 usable tiles):**
+  [`angular_dev_round1.md`](angular_dev_round1.md), from `validation.angular`
+  at `b31e8ba`. With these exact definitions the Part A criteria hold on
+  round-1 data for all four classes in both passes: A1 1.38-2.33, A2 +3.2 to
+  +7.8 dB, A3 within ±1.6 dB, A4 0.28-0.48. Bare rock and moss and lichen sit
+  at A1 1.38-1.45, close to the predicted lower bound of 1.3; the bound was
+  kept at 1.3 on purpose (the sharper claim). These are development results,
+  not tests.
 * **Never tuned on the test region:** anything.
 
 ## 6. Procedure
