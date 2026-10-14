@@ -187,4 +187,15 @@ Every number is reported for both models in Part B, and for both passes.
 
 ## Amendments
 
-(none)
+1. **2026-10-14: region DEM for SNAP (tooling only).** At the registered
+   commit, `python -m validation.evaluate region-dem` could only write the
+   round-1 region's DEM, which SNAP's terrain correction needs for this region
+   too. Added `--region` (default `bernese`, unchanged: regenerating the
+   round-1 DEM with it is byte-identical). The round-2 DEM
+   (`--region graubuenden`, 8.95-11.05 E, 45.95-47.05 N, 0.01% no-data) was
+   made with it before any SNAP output or render of this region existed. No
+   metric, render or threshold is affected. Found while preparing step 3.
+   Also recorded here: the four downloaded products match the catalogue sizes,
+   SHA-256 `2b9a7c39…` (06C154_9E8E), `1448e930…` (06C154_04D0), `a8d37ffd…`
+   (06BA07_8CBE), `62d62a78…` (06BA07_13E4) (full values in the commit
+   message).

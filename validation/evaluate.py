@@ -195,8 +195,8 @@ def run(args: argparse.Namespace) -> int:
 
 def region_dem(args: argparse.Namespace) -> int:
     m = pipeline.MARGIN_DEG
-    w, s = regions.LON_RANGE[0] - m, regions.LAT_RANGE[0] - m
-    e, n = regions.LON_RANGE[1] + m, regions.LAT_RANGE[1] + m
+    (lon0, lon1), (lat0, lat1) = regions.REGIONS[args.region]
+    w, s, e, n = lon0 - m, lat0 - m, lon1 + m, lat1 + m
     heights, grid = prepare.ellipsoidal_dem((w, s, e, n))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with rasterio.open(args.out, "w", driver="GTiff", width=grid.width, height=grid.height,
@@ -212,6 +212,7 @@ def main() -> int:
     sub = p.add_subparsers(dest="command", required=True)
     d = sub.add_parser("region-dem")
     d.add_argument("--out", type=Path, default=ROOT / "build" / "validation" / "region_dem.tif")
+    d.add_argument("--region", choices=sorted(regions.REGIONS), default="bernese")
     r = sub.add_parser("run")
     r.add_argument("--set", choices=["calibration", "held-out"], required=True)
     r.add_argument("--tiles", nargs="*", help="restrict to these tile names")
