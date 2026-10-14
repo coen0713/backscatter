@@ -258,3 +258,12 @@ than scattering mechanism, so it never tested what the predictions were about.
 A metric that would (after removing the local-incidence trend) was not
 pre-registered; anything along those lines is now exploratory and has to be
 labelled so.
+
+Exploratory follow-up (not pre-registered, `docs/exploratory_incidence.md`):
+removing the local-incidence trend drops the vegetation correlations to
+0.44-0.63, which confirms the R metrics were mostly terrain. Forest does not
+stand out once that is done. What does stand out is that the angular response
+is too steep everywhere: 4-11 dB too bright on slopes facing the sensor. The
+fit couldn't fix that, because its median objective is dominated by 35-60°.
+That points at the facet model's near-normal lobe, and it is the next thing to
+pre-register a test for.

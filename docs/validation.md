@@ -116,7 +116,12 @@ correlates with the real image far better on vegetated classes than predicted.
   forest) but the metric is dominated by geometry, so it does not test the
   mechanism. A test that would (for example, correlation after removing the
   local-incidence trend, or within narrow incidence bins) was not
-  pre-registered, and any such analysis now is exploratory.
+  pre-registered, and any such analysis now is exploratory. One such
+  exploratory analysis is in [`exploratory_incidence.md`](exploratory_incidence.md):
+  local incidence alone explains 66-79% of the real variance for the terrain
+  classes, the correlation with it removed is 0.44-0.63, forest is not an
+  outlier, and the model's angular response is too steep for every natural
+  class (4-11 dB too bright on slopes facing the sensor).
 * The fitted tree-cover exponent sat at the edge of the search range (n = 0,
   section 8); forest brightness that depends little on local incidence is what
   volume scattering looks like, and the fit absorbed it into k and n.
