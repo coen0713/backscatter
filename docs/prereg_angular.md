@@ -1,10 +1,9 @@
 # Pre-registration 2: angular response of the scattering model
 
-> **Status: PROPOSAL, NOT YET REGISTERED.** A draft for review. To register:
-> change anything you disagree with, fill in section 8, set this line to
-> `REGISTERED`, and commit this file on its own; that commit's hash is the
-> registration. After that, changes go only in "Amendments", dated and with a
-> reason.
+> **Status: REGISTERED on 2026-10-14 (Part A only).** The registration is the
+> commit that set this line (this file changed on its own). From then on,
+> changes go only in "Amendments", dated and with a reason; nothing above it is
+> edited.
 >
 > **Nothing in the test region (section 3) may be rendered, downloaded for
 > inspection, or looked at before registration.** Development uses round-1
@@ -26,7 +25,10 @@ exploration into a test on data nobody has looked at.
    round 1 established (geometry, shadow, bare-rock correlation, geolocation)?
 
 Part A can be registered and run on its own; Part B only once the revised
-model exists (section 5).
+model exists (section 5). Part A is registered alone (section 8), so Part B's
+metric definitions and thresholds are kept here for a later registration on a
+further, unseen region; once Part A has run, this region no longer qualifies
+as unseen for Part B.
 
 ## 2. Data
 
@@ -173,9 +175,15 @@ Every number is reported for both models in Part B, and for both passes.
     descending 4 wet hours (6.1 mm, Buffalora).
   * Both passes use different relative orbits from round 1 (88 and 66), so
     the sensor geometry is new as well as the terrain.
-* Part A pipeline commit: *to fill*
-* Part B model change, commit and refitted table (SHA-256): *to fill, or
-  "Part B not registered"*
+* Part A pipeline commit: `d3290709eb6bc133631e6bee716f2820fb70e39c` (metrics in
+  `validation/angular.py`, local incidence in `validation/explore_incidence.py`),
+  with `validation/materials_fitted.txt` (SHA-256 `d77d546c…`, LF) and ESA SNAP
+  14.0 with the round-1 graphs. Every Part A number is produced with this
+  commit, once.
+* Part B: **not registered.** Running Part A means this region's images and
+  results will have been seen, which could inform the development of a revised
+  model. If Part B is pursued, it is therefore tested on a new region and new
+  scenes under its own registration, not on this region.
 
 ## Amendments
 
