@@ -131,7 +131,22 @@ Every number is reported for both models in Part B, and for both passes.
 
 ## 8. Recorded at registration
 
-* Snow-check stations: *to fill (before scene selection)*
+* Snow-check stations (chosen 2026-10-13 from the MeteoSwiss station
+  metadata, before any scene selection for this region; every station has
+  complete hourly data for 2024-07-12 to 2024-09-15):
+  * Precipitation (wet hour if any reads ≥ 0.3 mm), every MeteoSwiss gauge at
+    1,500 m or higher inside the region: San Bernardino (SBE, 1,639 m), Piz
+    Martegnas (PMA, 2,668 m), Valbella (VAB, 1,568 m), Bivio (BIV, 1,856 m),
+    Arosa (ARO, 1,878 m), Segl-Maria (SIA, 1,804 m), Weissfluhjoch (WFJ,
+    2,691 m), Piz Corvatsch (COV, 3,294 m), Davos (DAV, 1,594 m), Samedan
+    (SAM, 1,709 m), Passo del Bernina (BEH, 2,260 m), Buffalora (BUF, 1,971 m).
+  * Temperature (snowfall if any is at or below +1.0 °C in a wet hour), every
+    station at 2,500 m or higher inside the region: Piz Martegnas (PMA),
+    Weissfluhjoch (WFJ), Piz Corvatsch (COV). Säntis (2,501 m) was left out:
+    it is about 28 km north of the region, in a different massif (Alpstein).
+  * Coverage gap: no MeteoSwiss station lies east of 10.3 E (the Austrian and
+    Italian part of the region); snow there is inferred from the Swiss
+    stations.
 * Scene IDs: *to fill*
 * Part A pipeline commit: *to fill*
 * Part B model change, commit and refitted table (SHA-256): *to fill, or
