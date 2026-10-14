@@ -147,7 +147,24 @@ Every number is reported for both models in Part B, and for both passes.
   * Coverage gap: no MeteoSwiss station lies east of 10.3 E (the Austrian and
     Italian part of the region); snow there is inferred from the Swiss
     stations.
-* Scene IDs: *to fill*
+* Scene IDs (selection rule applied to the public catalogue on 2026-10-13 with
+  `python -m validation.select_scenes --region graubuenden`, metadata only;
+  `build/validation/round2/selected_scenes.json`):
+  * Ascending, relative orbit 15, datatake 06C154, 99.3% of the region (two
+    slices): `S1A_IW_GRDH_1SDV_20240826T171517_20240826T171542_055387_06C154_9E8E`,
+    `S1A_IW_GRDH_1SDV_20240826T171542_20240826T171607_055387_06C154_04D0`.
+    Zero-Doppler over 46.5 N 10.0 E: 2024-08-26 17:15:48 UTC, incidence 42.1°.
+  * Descending, relative orbit 168, datatake 06BA07, 100% of the region (two
+    slices): `S1A_IW_GRDH_1SDV_20240813T052706_20240813T052731_055190_06BA07_8CBE`,
+    `S1A_IW_GRDH_1SDV_20240813T052731_20240813T052756_055190_06BA07_13E4`.
+    Zero-Doppler over 46.5 N 10.0 E: 2024-08-13 05:27:35 UTC, incidence 41.5°.
+  * Snow check: the ascending acquisition closest to 2024-08-15 (2024-08-14,
+    06BAD3) fails, precipitating at the acquisition hour (no snowfall
+    evidence). The selected ones pass with no snowfall evidence: ascending 12
+    wet hours in the preceding 72 h (largest gauge total 9.3 mm, Buffalora),
+    descending 4 wet hours (6.1 mm, Buffalora).
+  * Both passes use different relative orbits from round 1 (88 and 66), so
+    the sensor geometry is new as well as the terrain.
 * Part A pipeline commit: *to fill*
 * Part B model change, commit and refitted table (SHA-256): *to fill, or
   "Part B not registered"*

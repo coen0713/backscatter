@@ -38,10 +38,15 @@ TARGET = datetime(2024, 8, 15, tzinfo=timezone.utc)
 PRODUCT_TYPE = "IW_GRDH_1S"
 PLATFORM = "A"  # Sentinel-1A (prereg, section 2)
 MIN_COVERAGE = 0.95
+# Region bounds (W, S, E, N); the snow-check station set has the same name.
+REGIONS = {"bernese": (regions.LON_RANGE[0], regions.LAT_RANGE[0],  # round 1, docs/prereg.md
+                       regions.LON_RANGE[1], regions.LAT_RANGE[1]),
+           "graubuenden": (9.0, 46.0, 11.0, 47.0)}                  # round 2, docs/prereg_angular.md
 
 
-def query(retries: int = 8) -> list[dict]:
-    w, s, e, n = regions.LON_RANGE[0], regions.LAT_RANGE[0], regions.LON_RANGE[1], regions.LAT_RANGE[1]
+def query(bounds: tuple[float, float, float, float] = REGIONS["bernese"],
+          retries: int = 8) -> list[dict]:
+    w, s, e, n = bounds
     flt = (f"Collection/Name eq 'SENTINEL-1' and "
            f"Attributes/OData.CSC.StringAttribute/any(att:att/Name eq 'productType' and "
            f"att/OData.CSC.StringAttribute/Value eq '{PRODUCT_TYPE}') and "
@@ -84,14 +89,16 @@ def inside(pt: tuple[float, float], ring: list[tuple[float, float]]) -> bool:
     return hit
 
 
-def region_points(step: float = 0.02) -> list[tuple[float, float]]:
-    (w, e), (s, n) = regions.LON_RANGE, regions.LAT_RANGE
+def region_points(bounds: tuple[float, float, float, float] = REGIONS["bernese"],
+                  step: float = 0.02) -> list[tuple[float, float]]:
+    w, s, e, n = bounds
     xs = [w + i * step for i in range(round((e - w) / step) + 1)]
     ys = [s + j * step for j in range(round((n - s) / step) + 1)]
     return [(x, y) for x in xs for y in ys]
 
 
-def acquisitions(products: list[dict]) -> list[dict]:
+def acquisitions(products: list[dict],
+                 bounds: tuple[float, float, float, float] = REGIONS["bernese"]) -> list[dict]:
     groups: dict[str, list[dict]] = defaultdict(list)
     for p in products:
         attrs = {a["Name"]: a.get("Value") for a in p.get("Attributes", [])}
@@ -99,7 +106,7 @@ def acquisitions(products: list[dict]) -> list[dict]:
             continue
         datatake = p["Name"].split("_")[7]  # e.g. 06BAD3
         groups[datatake].append({**p, "_attrs": attrs})
-    pts = region_points()
+    pts = region_points(bounds)
     out = []
     for datatake, slices in groups.items():
         rings = [r for s in slices for r in polygons(s["GeoFootprint"])]
@@ -123,8 +130,11 @@ def main() -> int:
     p.add_argument("--json", help="write all ranked eligible candidates here")
     p.add_argument("--selected", help="write the selected acquisition per direction here "
                    "(input for data/fetch_s1.py --selected)")
+    p.add_argument("--region", choices=sorted(REGIONS), default="bernese",
+                   help="bernese = round 1 (default), graubuenden = round 2")
     args = p.parse_args()
-    acqs = acquisitions(query())
+    bounds = REGIONS[args.region]
+    acqs = acquisitions(query(bounds), bounds)
     result = {}
     selected = {}
     for direction in ("ASCENDING", "DESCENDING"):
@@ -133,7 +143,7 @@ def main() -> int:
         full = [a for a in cands if a["coverage"] >= MIN_COVERAGE]
         # Snow check in rank order; the first acquisition that passes is selected.
         for a in full:
-            a["snow_check"] = snow_check.check(datetime.fromisoformat(a["start"]))
+            a["snow_check"] = snow_check.check(datetime.fromisoformat(a["start"]), args.region)
             if a["snow_check"]["passed"]:
                 selected[direction] = a
                 break

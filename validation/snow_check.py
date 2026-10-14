@@ -40,6 +40,19 @@ PRECIP_STATIONS = {"gue": "Guetsch 2286 m", "pil": "Pilatus 2105 m"}
 HIGH_STATIONS = {"jun": "Jungfraujoch 3571 m", "gor": "Gornergrat 3129 m",
                  "dia": "Diablerets 2964 m", "egh": "Eggishorn 2892 m",
                  "att": "Les Attelas 2734 m", "tit": "Titlis 3045 m"}
+# Station sets per region: (precipitation gauges, temperature stations >= 2,500 m).
+# "bernese" is round 1 (docs/prereg.md); "graubuenden" is round 2
+# (docs/prereg_angular.md, section 8), fixed before its scene selection.
+STATIONS = {
+    "bernese": (PRECIP_STATIONS, HIGH_STATIONS),
+    "graubuenden": (
+        {"sbe": "San Bernardino 1639 m", "pma": "Piz Martegnas 2668 m", "vab": "Valbella 1568 m",
+         "biv": "Bivio 1856 m", "aro": "Arosa 1878 m", "sia": "Segl-Maria 1804 m",
+         "wfj": "Weissfluhjoch 2691 m", "cov": "Piz Corvatsch 3294 m", "dav": "Davos 1594 m",
+         "sam": "Samedan 1709 m", "beh": "Passo del Bernina 2260 m", "buf": "Buffalora 1971 m"},
+        {"pma": "Piz Martegnas 2668 m", "wfj": "Weissfluhjoch 2691 m",
+         "cov": "Piz Corvatsch 3294 m"}),
+}
 WET_MM_PER_H = 0.3
 SNOW_MAX_C = 1.0
 WINDOW_H = 72
@@ -63,11 +76,12 @@ def _value(table: dict[datetime, dict], t: datetime, column: str) -> float | Non
     return float(v) if v not in (None, "") else None
 
 
-def check(acquisition: datetime) -> dict:
+def check(acquisition: datetime, region: str = "bernese") -> dict:
     """Snow/rain verdict for one acquisition time (UTC, naive or aware)."""
+    precip_names, high_names = STATIONS[region]
     t0 = acquisition.replace(tzinfo=None, minute=0, second=0, microsecond=0)
-    precip = {s: _hourly(s, t0.year) for s in PRECIP_STATIONS}
-    temps = {s: _hourly(s, t0.year) for s in HIGH_STATIONS}
+    precip = {s: _hourly(s, t0.year) for s in precip_names}
+    temps = {s: _hourly(s, t0.year) for s in high_names}
     hours = [t0 + timedelta(hours=h) for h in range(-WINDOW_H, 2)]
     wet_hours, snow_hours = [], []
     for t in hours:
@@ -84,7 +98,7 @@ def check(acquisition: datetime) -> dict:
     if snow_hours:
         t, cold = snow_hours[0]
         reasons.append(f"snowfall evidence in {len(snow_hours)} h (first {t:%Y-%m-%d %H:%M}: "
-                       + ", ".join(f"{HIGH_STATIONS[s]} {v:+.1f} C" for s, v in cold.items()) + ")")
+                       + ", ".join(f"{high_names[s]} {v:+.1f} C" for s, v in cold.items()) + ")")
     if at_acquisition:
         reasons.append("precipitating at the acquisition hour")
     totals = {s: round(sum(_value(precip[s], t, "rre150h0") or 0.0 for t in hours), 1)
