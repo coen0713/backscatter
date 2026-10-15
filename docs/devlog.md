@@ -267,3 +267,20 @@ is too steep everywhere: 4-11 dB too bright on slopes facing the sensor. The
 fit couldn't fix that, because its median objective is dominated by 35-60°.
 That points at the facet model's near-normal lobe, and it is the next thing to
 pre-register a test for.
+
+## 2026-10-15: round 2, Part A replicates
+
+Prereg 2 Part A was registered at `269d169` and run once on Graubünden /
+Engadin (200 unseen tiles, new orbits 15 and 168). It replicates. The angular
+response is 1.4-2.5 times too steep for all four natural classes, 3.3-8.7 dB
+too bright on sensor-facing slopes, and within 1.5 dB at 40-60°. That is very
+close to the round-1 development numbers. One value fell outside its
+prediction: grassland's descending slope ratio of 2.52, against an upper bound
+of 2.5.
+
+Logistics worth remembering: SNAP's default 22 GB heap failed while a browser
+held 19 GB, and running it with `-J-Xmx8G` fixed that. The first Part A
+attempt died with its shell because it had been started with `&` rather than as
+a tracked background task. No metric existed at that point (they are only
+computed at the end), so the restart reused the cached renders and finished
+the single run. Both events are recorded in `docs/validation_angular.md`.
