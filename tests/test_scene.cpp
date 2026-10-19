@@ -187,6 +187,51 @@ TEST_CASE("Facet scattering model", "[scene][material]") {
   CHECK_THROWS(materials::by_name("cheese"));
 }
 
+TEST_CASE("Specular fraction scales only the specular lobe", "[scene][material]") {
+  const FacetScatteringModel model;
+  Material m = materials::dry_soil();
+  const double c = std::cos(deg_to_rad(15.0));
+  const double diffuse = m.diffuse_coefficient * std::pow(c, m.diffuse_exponent);
+  const double full = model.backscatter(m, c, Polarization::VV);
+  m.specular_fraction = 0.0;
+  CHECK(model.backscatter(m, c, Polarization::VV) == Approx(diffuse));
+  m.specular_fraction = 0.25;
+  CHECK(model.backscatter(m, c, Polarization::VV) == Approx(diffuse + 0.25 * (full - diffuse)));
+  // Bistatic still reduces to monostatic, and mirror reflection is untouched.
+  const Vec3d n{0, 0, 1};
+  const Vec3d s = normalize(Vec3d{0.2, -0.1, 0.95});
+  CHECK(model.bistatic(m, n, s, s, Polarization::VV) ==
+        Approx(model.backscatter(m, dot(n, s), Polarization::VV)));
+  Material plain = materials::dry_soil();
+  CHECK(model.specular_reflectance(m, c, Polarization::VV) ==
+        model.specular_reflectance(plain, c, Polarization::VV));
+}
+
+TEST_CASE("Material table loading", "[scene][material]") {
+  const auto basic = temp_file("materials_basic.txt",
+                               "# comment\n10 custom tree 5 -1 0.25 0.6 0.5\n"
+                               "80 preset water\n");
+  const auto table = load_material_table(basic);
+  REQUIRE(table.size() == 2);
+  CHECK(table.at(10).name == "tree");
+  CHECK(table.at(10).diffuse_coefficient == Approx(0.25));
+  CHECK(table.at(10).specular_fraction == 1.0);  // no directive: plain GO lobe
+  CHECK(table.at(80).specular_fraction == 1.0);
+
+  const auto scaled = temp_file("materials_scaled.txt",
+                                "10 custom tree 5 -1 0.25 0.6 0.5\n"
+                                "specular_fraction 0.05  # applies to every entry\n"
+                                "80 preset water\n");
+  const auto t2 = load_material_table(scaled);
+  CHECK(t2.at(10).specular_fraction == Approx(0.05));
+  CHECK(t2.at(80).specular_fraction == Approx(0.05));
+
+  CHECK_THROWS(load_material_table(
+      temp_file("materials_twice.txt", "specular_fraction 0.1\nspecular_fraction 0.2\n")));
+  CHECK_THROWS(load_material_table(temp_file("materials_range.txt", "specular_fraction 1.5\n")));
+  CHECK_THROWS(load_material_table(temp_file("materials_word.txt", "bogus 10 custom\n")));
+}
+
 TEST_CASE("Synthetic scenes build", "[scene]") {
   for (const char* name : {"plane", "ridge", "dihedral", "city", "mountains"}) {
     const Scene scene = make_synthetic_scene(name);

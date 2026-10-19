@@ -41,8 +41,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
-from dataclasses import dataclass, replace
+from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 
@@ -78,21 +80,26 @@ class MaterialEntry:
     n: float
     rms_slope: float
     pec: bool = False
+    specular_fraction: float = 1.0  # table-wide (`specular_fraction` line); same for all
 
 
 def read_table(path: Path) -> list[MaterialEntry]:
     """Read a material table whose entries are all `custom`."""
     entries = []
+    fraction = 1.0
     for raw in path.read_text().splitlines():
         line = raw.split("#", 1)[0].split()
         if not line:
+            continue
+        if line[0] == "specular_fraction":
+            fraction = float(line[1])
             continue
         if line[1] != "custom":
             raise ValueError(f"{path}: entry {line[0]} must be 'custom' to be fitted")
         entries.append(MaterialEntry(int(line[0]), line[2], float(line[3]), float(line[4]),
                                      float(line[5]), float(line[6]), float(line[7]),
                                      len(line) > 8 and line[8] == "pec"))
-    return entries
+    return [replace(e, specular_fraction=fraction) for e in entries]
 
 
 def write_table(path: Path, entries: list[MaterialEntry], comment: str) -> None:
@@ -101,11 +108,20 @@ def write_table(path: Path, entries: list[MaterialEntry], comment: str) -> None:
     for e in entries:
         lines.append(f"{e.code:<7d} custom  {e.name:<15s} {e.eps_re:<7g} {e.eps_im:<7g} "
                      f"{e.k:<8.5g} {e.n:<6.4g} {e.rms_slope:g}" + (" pec" if e.pec else ""))
+    fractions = {e.specular_fraction for e in entries}
+    if len(fractions) > 1:
+        raise ValueError(f"specular_fraction differs between entries: {sorted(fractions)}")
+    if fractions and (fraction := fractions.pop()) != 1.0:  # tables at 1 stay byte-identical
+        lines.append(f"specular_fraction {fraction:.6g}")
     path.write_text("\n".join(lines) + "\n")
 
 
 def uniform(entries: list[MaterialEntry], k: float, n: float) -> list[MaterialEntry]:
     return [replace(e, k=k, n=n) for e in entries]
+
+
+def with_specular_fraction(entries: list[MaterialEntry], fraction: float) -> list[MaterialEntry]:
+    return [replace(e, specular_fraction=fraction) for e in entries]
 
 
 # ------------------------------------------------------------------ basis
@@ -134,6 +150,7 @@ def render_basis(prep: pipeline.PreparedTile, orbit: Path, utc: str, render: Pat
     tables = prep.work / "fit_tables"
     tables.mkdir(exist_ok=True)
     zero = tables / "k0.txt"
+    base = with_specular_fraction(base, 1.0)  # S1 is the full lobe; alpha scales it later
     write_table(zero, uniform(base, 0.0, 1.0), "fit basis: diffuse off")
     spec = pipeline.render_tile(prep, orbit, utc, render, name="fit_specular",
                                 material_table=zero, bounces=1)
@@ -169,12 +186,16 @@ class ClassBlocks:
     """Block means (linear) for one class, pooled over tiles and passes."""
 
     y: list[np.ndarray]
-    s: list[np.ndarray]
+    s: list[np.ndarray]                 # fixed part: S1 (full lobe) + M
     f: dict[float, list[np.ndarray]]
+    spec: list[np.ndarray] = field(default_factory=list)  # S1 alone, for the specular fraction
 
     def arrays(self) -> tuple[np.ndarray, np.ndarray, dict[float, np.ndarray]]:
         return (np.concatenate(self.y), np.concatenate(self.s),
                 {n: np.concatenate(v) for n, v in self.f.items()})
+
+    def specular(self) -> np.ndarray:
+        return np.concatenate(self.spec)
 
 
 def collect_blocks(basis: Basis, ref_beta0: np.ndarray, ref_valid: np.ndarray,
@@ -186,6 +207,7 @@ def collect_blocks(basis: Basis, ref_beta0: np.ndarray, ref_valid: np.ndarray,
     fixed = basis.specular if offset is None else basis.specular + offset
     y_blk, ok = metrics.block_reduce(ref_beta0, usable, k, min_fraction=1.0)
     s_blk, _ = metrics.block_reduce(fixed, usable, k, min_fraction=1.0)
+    spec_blk, _ = metrics.block_reduce(basis.specular, usable, k, min_fraction=1.0)
     f_blk = {n: metrics.block_reduce(f, usable, k, min_fraction=1.0)[0]
              for n, f in basis.diffuse.items()}
     for c in np.unique(basis.worldcover):
@@ -202,6 +224,7 @@ def collect_blocks(basis: Basis, ref_beta0: np.ndarray, ref_valid: np.ndarray,
         entry = pooled.setdefault(int(c), ClassBlocks([], [], {n: [] for n in basis.diffuse}))
         entry.y.append(y_blk[sel])
         entry.s.append(s_blk[sel])
+        entry.spec.append(spec_blk[sel])
         for n in basis.diffuse:
             entry.f[n].append(f_blk[n][sel])
 
@@ -279,19 +302,28 @@ def fit_class(y: np.ndarray, s: np.ndarray, f: dict[float, np.ndarray]) -> dict:
             "n_profile_rise_db": rise, "n_weak": bool(rise < N_WEAK_DB)}
 
 
-def fit_all(pooled: dict[int, ClassBlocks], base: list[MaterialEntry]) -> tuple[list[MaterialEntry], dict]:
+def fit_all(pooled: dict[int, ClassBlocks], base: list[MaterialEntry],
+            specular_fraction: float | None = None) -> tuple[list[MaterialEntry], dict]:
+    """Fit (k, n) per class at the given specular fraction (default: the base
+    table's own, which is the registered round-1 behaviour)."""
+    if specular_fraction is None:
+        specular_fraction = base[0].specular_fraction if base else 1.0
     by_code = {e.code: e for e in base}
-    fitted = list(base)
+    fitted = with_specular_fraction(base, specular_fraction)
     report = {}
     for code, blocks in sorted(pooled.items()):
         y, s, f = blocks.arrays()
         start = by_code.get(code)
         if start is None:
             continue
-        before = objective(y, s, diffuse_at(f, start.n), start.k)
+        # Starting point: the starting table as given (its own specular fraction).
+        before = objective(y, _fixed(blocks, s, start.specular_fraction), diffuse_at(f, start.n),
+                           start.k)
+        s = _fixed(blocks, s, specular_fraction)
         if y.size < MIN_BLOCKS:
             report[code] = {"name": start.name, "blocks": int(y.size), "kept_start": True,
-                            "k": start.k, "n": start.n, "median_abs_db": before,
+                            "k": start.k, "n": start.n,
+                            "median_abs_db": objective(y, s, diffuse_at(f, start.n), start.k),
                             "start_median_abs_db": before}
             continue
         res = fit_class(y, s, f)
@@ -300,6 +332,65 @@ def fit_all(pooled: dict[int, ClassBlocks], base: list[MaterialEntry]) -> tuple[
         report[code] = res
         fitted = [replace(e, k=res["k"], n=res["n"]) if e.code == code else e for e in fitted]
     return fitted, report
+
+
+def _fixed(blocks: ClassBlocks, s: np.ndarray, specular_fraction: float) -> np.ndarray:
+    """The fixed part with the specular lobe scaled: S1 enters s at full strength."""
+    if specular_fraction == 1.0 or not blocks.spec:
+        return s
+    return s - (1.0 - specular_fraction) * blocks.specular()
+
+
+ALPHA_GRID = (0.0, 0.02, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 0.7, 1.0)
+
+
+def specular_objective(pooled: dict[int, ClassBlocks], alpha: float) -> tuple[float, dict]:
+    """Registered objective (median |dB error|) pooled over the blocks of every
+    fitted class (at least MIN_BLOCKS), each class with its own (k, n) refitted
+    at specular fraction alpha. Returns (objective, per-class median)."""
+    jobs = {}
+    for code, blocks in sorted(pooled.items()):
+        y, s, f = blocks.arrays()
+        if y.size < MIN_BLOCKS or code == SNOW_ICE:
+            continue
+        jobs[code] = (y, _fixed(blocks, s, alpha), f)
+    if sum(j[0].size for j in jobs.values()) > PARALLEL_MIN_BLOCKS:
+        # Classes are independent: fit them in parallel processes (same results).
+        with ProcessPoolExecutor(max_workers=min(len(jobs), os.cpu_count() or 1)) as pool:
+            errors = dict(zip(jobs, pool.map(_class_errors, jobs.values())))
+    else:
+        errors = {code: _class_errors(j) for code, j in jobs.items()}
+    per_class = {code: float(np.median(e)) for code, e in errors.items()}
+    return float(np.median(np.concatenate(list(errors.values())))), per_class
+
+
+PARALLEL_MIN_BLOCKS = 50_000
+
+
+def _class_errors(job: tuple[np.ndarray, np.ndarray, dict[float, np.ndarray]]) -> np.ndarray:
+    """Absolute dB errors of one class after refitting (k, n)."""
+    y, s, f = job
+    r = fit_class(y, s, f)
+    return np.abs(metrics.to_db(s + r["k"] * diffuse_at(f, r["n"])) - metrics.to_db(y))
+
+
+def fit_specular_fraction(pooled: dict[int, ClassBlocks]) -> tuple[float, list[dict]]:
+    """One specular fraction for all classes: scan ALPHA_GRID, then golden-section
+    refinement between the best grid point's neighbours. Returns (alpha, profile)."""
+    profile = []
+
+    def obj(a: float) -> float:
+        value, per_class = specular_objective(pooled, a)
+        profile.append({"alpha": float(a), "objective_db": value, "per_class_db": per_class})
+        return value
+
+    scan = [obj(a) for a in ALPHA_GRID]
+    i = int(np.argmin(scan))
+    lo, hi = ALPHA_GRID[max(i - 1, 0)], ALPHA_GRID[min(i + 1, len(ALPHA_GRID) - 1)]
+    alpha = _golden(obj, lo, hi, 0.005)
+    obj(alpha)
+    best = min(profile, key=lambda p: p["objective_db"])
+    return float(best["alpha"]), sorted(profile, key=lambda p: p["alpha"])
 
 
 @dataclass
@@ -315,11 +406,15 @@ class FitContext:
 
 
 def run_fit(contexts: list[FitContext], base: list[MaterialEntry], render: Path,
-            iterations: int = ITERATIONS
+            iterations: int = ITERATIONS, fit_specular: bool = False
             ) -> tuple[list[MaterialEntry], dict, list[dict], dict[int, ClassBlocks]]:
     """Fit k and n per class. Each iteration re-renders the multi-bounce part M
-    with the current table, then refits every class with M held fixed.
-    Returns (fitted table, final report, per-iteration reports, final blocks)."""
+    with the current table, then refits every class with M held fixed. With
+    `fit_specular`, one specular fraction for all classes is fitted first in
+    each iteration (fit_specular_fraction); otherwise the base table's is kept.
+    Returns (fitted table, final report, per-iteration records, final blocks);
+    each record holds the class report and, if fitted, the specular fraction
+    and its objective profile."""
     table = list(base)
     history = []
     pooled: dict[int, ClassBlocks] = {}
@@ -331,8 +426,14 @@ def run_fit(contexts: list[FitContext], base: list[MaterialEntry], render: Path,
             collect_blocks(ctx.basis, ctx.ref_beta0, ctx.ref_valid, pooled, offset)
         # Starting values stay the reference for "kept" classes and for the
         # before/after comparison; the fit itself starts from scratch each round.
-        table, report = fit_all(pooled, base)
-        history.append(report)
+        record: dict = {}
+        alpha = base[0].specular_fraction if base else 1.0
+        if fit_specular:
+            alpha, record["specular_profile"] = fit_specular_fraction(pooled)
+            record["specular_fraction"] = alpha
+        table, report = fit_all(pooled, base, alpha)
+        record["classes"] = report
+        history.append(record)
     return table, report, history, pooled
 
 
@@ -376,6 +477,9 @@ def main() -> int:
     p.add_argument("--table", type=Path, default=pipeline.MATERIAL_TABLE)
     p.add_argument("--build", type=Path, default=ROOT / "build" / "release")
     p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--fit-specular-fraction", action="store_true",
+                   help="also fit one specular fraction for all classes (Part B development; "
+                        "the registered round-1 procedure does not)")
     args = p.parse_args()
 
     tiles = regions.calibration_tiles()
@@ -408,12 +512,14 @@ def main() -> int:
     contexts = [c for c in contexts if c.prep.tile.name not in excluded]
     for t, r in sorted(excluded.items()):
         print(f"excluded {t}: {'; '.join(r)}", flush=True)
-    fitted, report, _, _ = run_fit(contexts, base, render)
+    fitted, report, history, _ = run_fit(contexts, base, render,
+                                         fit_specular=args.fit_specular_fraction)
     args.out.mkdir(parents=True, exist_ok=True)
+    what = "k and n, and one specular fraction" if args.fit_specular_fraction else "k and n only"
     write_table(args.out / "materials_fitted.txt", fitted,
-                "Fitted on calibration tiles by python -m validation.fit (k and n only).")
-    (args.out / "fit.json").write_text(json.dumps({"classes": report, "excluded_tiles": excluded},
-                                                  indent=1))
+                f"Fitted on calibration tiles by python -m validation.fit ({what}).")
+    (args.out / "fit.json").write_text(json.dumps({"classes": report, "excluded_tiles": excluded,
+                                                   "iterations": history}, indent=1))
     lines = ["# Per-class fit (calibration tiles)\n", header("python -m validation.fit", args.build)]
     if excluded:
         lines.append(f"Tiles: {len(tiles) - len(excluded)} of {len(tiles)} calibration tiles; "
@@ -421,6 +527,14 @@ def main() -> int:
         lines += [f"* {t}: {'; '.join(r)}" for t, r in sorted(excluded.items())] + [""]
     else:
         lines.append(f"Tiles: all {len(tiles)} calibration tiles.\n")
+    if args.fit_specular_fraction:
+        last = history[-1]
+        lines += [f"Specular fraction (one for all classes): **{last['specular_fraction']:.3f}** "
+                  f"(per iteration: " + ", ".join(f"{h['specular_fraction']:.3f}" for h in history)
+                  + "). Objective profile, last iteration:\n",
+                  "| Specular fraction | Pooled median abs. error |", "|---|---|"]
+        lines += [f"| {p['alpha']:.3f} | {p['objective_db']:.3f} dB |"
+                  for p in last["specular_profile"]] + [""]
     lines += report_lines(report)
     (args.out / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))

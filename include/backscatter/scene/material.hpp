@@ -20,6 +20,10 @@ struct Material {
   double diffuse_exponent = 2.0;                // n
   double rms_slope = 0.1;                       // s, geometric-optics facet slope
   bool perfect_conductor = false;
+  /// Scale on the geometric-optics specular lobe in backscatter() and
+  /// bistatic() (1 = the plain Kirchhoff GO lobe). Mirror reflection along
+  /// multi-bounce paths (specular_reflectance) is not affected.
+  double specular_fraction = 1.0;
 };
 
 namespace materials {
@@ -38,8 +42,10 @@ Material by_name(const std::string& name);
 ///   # comment
 ///   <code> preset <preset_name>
 ///   <code> custom <name> <eps_re> <eps_im> <k> <n> <rms_slope> [pec]
+///   specular_fraction <f>            (optional, once; applies to every entry)
 ///
 /// eps_im follows the eps' - j eps'' convention (give it as a negative number).
+/// specular_fraction must lie in [0, 1]; without the line every entry keeps 1.
 std::map<int, Material> load_material_table(const std::filesystem::path& path);
 
 /// Fresnel amplitude reflection coefficient for a planar interface between

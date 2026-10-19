@@ -46,18 +46,41 @@ std::map<int, Material> load_material_table(const std::filesystem::path& path) {
   std::map<int, Material> table;
   std::string line;
   std::size_t line_no = 0;
+  double specular_fraction = 1.0;
+  bool have_specular_fraction = false;
   while (std::getline(in, line)) {
     ++line_no;
     if (const auto hash = line.find('#'); hash != std::string::npos) {
       line.erase(hash);
     }
     std::istringstream ls(line);
-    int code = 0;
-    std::string kind;
-    if (!(ls >> code)) {
+    std::string first;
+    if (!(ls >> first)) {
       continue;  // blank or comment
     }
     const std::string where = path.string() + ":" + std::to_string(line_no);
+    if (first == "specular_fraction") {
+      if (have_specular_fraction || !(ls >> specular_fraction) || specular_fraction < 0.0 ||
+          specular_fraction > 1.0) {
+        throw std::runtime_error(
+            "load_material_table: specular_fraction must appear once, "
+            "with a value in [0, 1], at " +
+            where);
+      }
+      have_specular_fraction = true;
+      continue;
+    }
+    int code = 0;
+    std::size_t used = 0;
+    try {
+      code = std::stoi(first, &used);
+    } catch (const std::exception&) {
+      used = 0;
+    }
+    if (used != first.size()) {
+      throw std::runtime_error("load_material_table: expected a class code at " + where);
+    }
+    std::string kind;
     if (!(ls >> kind)) {
       throw std::runtime_error("load_material_table: missing kind at " + where);
     }
@@ -82,6 +105,9 @@ std::map<int, Material> load_material_table(const std::filesystem::path& path) {
       throw std::runtime_error(msg);
     }
     table[code] = m;
+  }
+  for (auto& [code, m] : table) {
+    m.specular_fraction = specular_fraction;
   }
   return table;
 }
@@ -119,7 +145,7 @@ double FacetScatteringModel::backscatter(const Material& m, double cos_theta,
   }
   const double diffuse = m.diffuse_coefficient * std::pow(cos_theta, m.diffuse_exponent);
   const double r0 = std::norm(fresnel_reflection(m, 1.0, pol));
-  return diffuse + r0 * geometric_optics_lobe(cos_theta, m.rms_slope);
+  return diffuse + m.specular_fraction * r0 * geometric_optics_lobe(cos_theta, m.rms_slope);
 }
 
 double FacetScatteringModel::bistatic(const Material& m, const Vec3d& n, const Vec3d& to_source,
@@ -132,7 +158,7 @@ double FacetScatteringModel::bistatic(const Material& m, const Vec3d& n, const V
   const double diffuse = m.diffuse_coefficient * std::pow(ci * cs, 0.5 * m.diffuse_exponent);
   const Vec3d h = normalize(to_source + to_receiver);
   const double r = std::norm(fresnel_reflection(m, dot(to_source, h), pol));
-  return diffuse + r * geometric_optics_lobe(dot(n, h), m.rms_slope);
+  return diffuse + m.specular_fraction * r * geometric_optics_lobe(dot(n, h), m.rms_slope);
 }
 
 double FacetScatteringModel::specular_reflectance(const Material& m, double cos_theta,
