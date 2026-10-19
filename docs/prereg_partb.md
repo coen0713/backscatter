@@ -1,10 +1,8 @@
 # Pre-registration 3: a revised specular lobe (Part B)
 
-> **Status: PROPOSAL, NOT YET REGISTERED.** A draft for review. To register:
-> change anything you disagree with, fill in section 8, set this line to
-> `REGISTERED`, and commit this file on its own; that commit's hash is the
-> registration. After that, changes go only in "Amendments", dated and with a
-> reason.
+> **Status: REGISTERED on 2026-10-19.** The registration is the commit that set
+> this line (this file changed on its own). From then on, changes go only in
+> "Amendments", dated and with a reason; nothing above it is edited.
 >
 > **Nothing in the test region (section 3) may be rendered, downloaded for
 > inspection, or looked at before registration.**
@@ -148,7 +146,13 @@ specular fraction (about 0.2). A single global fraction is kept on purpose.
     stated here before any result.
   * Both relative orbits (117, 95) are new: rounds 1 and 2 used 88, 66, 15
     and 168.
-* Pipeline commit: *to fill*
+* Pipeline commit: `752e1ac0e726f817acaf9dce9822cffda45a1625` (metrics in
+  `validation/angular.py`, local incidence in `validation/explore_incidence.py`,
+  region DEM by `validation.evaluate region-dem --region tyrol`), with ESA
+  SNAP 14.0 and the round-1 graphs. Models: `validation/materials_fitted.txt`
+  (current, SHA-256 `d77d546c…`, LF) and `validation/materials_partb_dev.txt`
+  (revised, SHA-256 `dbdf1747…`, LF). Every number is produced with this
+  commit, once per model.
 
 ## Amendments
 
