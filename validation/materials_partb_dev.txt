@@ -1,0 +1,13 @@
+# Fitted on calibration tiles by python -m validation.fit (k and n, and one specular fraction).
+# code  kind    name            eps_re  eps_im  k        n      rms_slope
+10      custom  tree_cover      5       -1      0.17077  0.9135 0.5
+20      custom  shrubland       5       -1      0.15     1.2    0.35
+30      custom  grassland       8       -1.5    0.0718   0.7247 0.25
+40      custom  cropland        8       -1.5    0.1945   2.964  0.25
+50      custom  concrete        5.5     -0.6    0.47231  1.511  0.1
+60      custom  bare_rock       6       -0.5    0.25969  1.462  0.25
+70      custom  wet_snow_ice    1.8     -0.2    0.02     2      0.1
+80      custom  water           68      -21     0.015413 2.997  0.05
+90      custom  wet_soil        15      -3      0.15     2      0.15
+100     custom  moss_lichen     5       -0.5    0.2191   2.111  0.2
+specular_fraction 0.046099

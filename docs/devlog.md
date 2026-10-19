@@ -284,3 +284,22 @@ attempt died with its shell because it had been started with `&` rather than as
 a tracked background task. No metric existed at that point (they are only
 computed at the end), so the restart reused the cached renders and finished
 the single run. Both events are recorded in `docs/validation_angular.md`.
+
+## 2026-10-19: Part B development, a specular fraction
+
+The diagnosis was quick: scale the GO specular lobe, refit, and the angular
+mismatch goes away. The harder question was how to set the scale without
+choosing it by eye. One global fraction, fitted on the registered objective,
+lands at 0.046 and halves the pooled error (1.72 to 0.90 dB). On round-1 data
+it meets every Part B threshold, in-sample, and round 1's criteria still pass.
+
+The synthetic test was the instructive part. The lobe matters for only about a
+fifth of the blocks, so a median objective on noise-free data does not see it
+at all: it is flat in alpha. Real data have about 1 dB of scatter per block,
+and that scatter is what makes alpha identifiable. So the minimum is shallow
+(0.02-0.07 all within 0.003 dB), and the profile has to be reported with it.
+
+Logistics: Windows' Temp cleanup had eaten the scratch toolchain (cmake
+modules, pip, numpy), so the build environment now lives in `.venv` with the
+same pinned versions; the rebuilt renderer reproduces old renders bit for
+bit. A Windows Update restart killed the first fit 15 minutes in.
