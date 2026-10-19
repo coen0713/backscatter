@@ -24,7 +24,8 @@ from validation import metrics, prepare, regions
 
 ROOT = Path(__file__).resolve().parent.parent
 PREREG = ROOT / "docs" / "prereg.md"
-PREREGS = {"bernese": PREREG, "graubuenden": ROOT / "docs" / "prereg_angular.md"}
+PREREGS = {"bernese": PREREG, "graubuenden": ROOT / "docs" / "prereg_angular.md",
+           "tyrol": ROOT / "docs" / "prereg_partb.md"}
 MATERIAL_TABLE = Path(__file__).resolve().parent / "materials_worldcover.txt"
 
 MARGIN_DEG = 0.05      # terrain outside the tile that can shadow or lay over into it

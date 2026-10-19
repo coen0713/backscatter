@@ -129,7 +129,7 @@ def main() -> int:
     p.add_argument("--selected", help="write the selected acquisition per direction here "
                    "(input for data/fetch_s1.py --selected)")
     p.add_argument("--region", choices=sorted(REGIONS), default="bernese",
-                   help="bernese = round 1 (default), graubuenden = round 2")
+                   help="bernese = round 1 (default), graubuenden = round 2, tyrol = round 3")
     args = p.parse_args()
     bounds = REGIONS[args.region]
     acqs = acquisitions(query(bounds), bounds)

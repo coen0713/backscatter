@@ -52,13 +52,65 @@ STATIONS = {
          "sam": "Samedan 1709 m", "beh": "Passo del Bernina 2260 m", "buf": "Buffalora 1971 m"},
         {"pma": "Piz Martegnas 2668 m", "wfj": "Weissfluhjoch 2691 m",
          "cov": "Piz Corvatsch 3294 m"}),
+    # Round 3 (docs/prereg_partb.md, section 8): GeoSphere Austria station ids,
+    # chosen before its scene selection. Gauges: every station at 1,500 m or
+    # higher in the region with complete 2024 precipitation; temperature:
+    # stations at 2,500 m or higher in or next to it.
+    "tyrol": (
+        {"82": "Rudolfshuette 2317 m", "196": "Patscherkofel 2251 m",
+         "85": "Schmittenhoehe 1956 m", "66": "Obergurgl 1941 m",
+         "12216": "Hahnenkamm-Sonnenrast 1667 m", "15430": "Kolm-Saigurn 1626 m",
+         "14912": "Hintertux 1505 m"},
+        {"213": "Sonnblick 3109 m", "17320": "Brunnenkogel 3437 m",
+         "184": "Pitztaler Gletscher 2864 m"}),
 }
+# Where each region's stations come from (MeteoSwiss SwissMetNet or GeoSphere Austria).
+SOURCES = {"bernese": "meteoswiss", "graubuenden": "meteoswiss", "tyrol": "geosphere"}
+GEOSPHERE = "https://dataset.api.hub.geosphere.at/v1/station/historical/klima-v2-1h"
 WET_MM_PER_H = 0.3
 SNOW_MAX_C = 1.0
 WINDOW_H = 72
 
 
-def _hourly(station: str, year: int) -> dict[datetime, dict]:
+def _hourly_geosphere(station: str, year: int, retries: int = 8) -> dict[datetime, dict]:
+    """GeoSphere Austria hourly data (open, no account) as rows keyed like the
+    MeteoSwiss ones: rr (mm) -> rre150h0, tl (deg C) -> tre200h0. Times are UTC."""
+    path = CACHE / "geosphere" / f"klima-v2-1h_{station}_{year}.csv"
+    if not path.exists():
+        # GeoSphere's certificate chain is not in Python's default store on
+        # every system, so use certifi's bundle (a rasterio dependency).
+        import ssl  # noqa: PLC0415
+        import time  # noqa: PLC0415
+        import urllib.error  # noqa: PLC0415
+        import urllib.request  # noqa: PLC0415
+
+        import certifi  # noqa: PLC0415
+        url = (f"{GEOSPHERE}?parameters=rr,tl&station_ids={station}&start={year}-01-01T00:00"
+               f"&end={year + 1}-01-01T00:00&output_format=csv")
+        ctx = ssl.create_default_context(cafile=certifi.where())
+        for attempt in range(retries):
+            try:
+                with urllib.request.urlopen(url, timeout=300, context=ctx) as resp:
+                    text = resp.read().decode("utf-8")
+                break
+            except (urllib.error.URLError, ConnectionError, TimeoutError):
+                if attempt == retries - 1:
+                    raise
+                time.sleep(min(2.0 ** attempt, 30.0))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    out = {}
+    with open(path, encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            t = datetime.fromisoformat(row["time"]).replace(tzinfo=None)
+            if t.year == year:
+                out[t] = {"rre150h0": row["rr"], "tre200h0": row["tl"]}
+    return out
+
+
+def _hourly(station: str, year: int, source: str = "meteoswiss") -> dict[datetime, dict]:
+    if source == "geosphere":
+        return _hourly_geosphere(station, year)
     decade = year // 10 * 10
     name = f"ogd-smn_{station}_h_historical_{decade}-{decade + 9}.csv"
     path = download(f"{BASE}/{station}/{name}", CACHE / "meteoswiss" / name)
@@ -80,8 +132,9 @@ def check(acquisition: datetime, region: str = "bernese") -> dict:
     """Snow/rain verdict for one acquisition time (UTC, naive or aware)."""
     precip_names, high_names = STATIONS[region]
     t0 = acquisition.replace(tzinfo=None, minute=0, second=0, microsecond=0)
-    precip = {s: _hourly(s, t0.year) for s in precip_names}
-    temps = {s: _hourly(s, t0.year) for s in high_names}
+    source = SOURCES[region]
+    precip = {s: _hourly(s, t0.year, source) for s in precip_names}
+    temps = {s: _hourly(s, t0.year, source) for s in high_names}
     hours = [t0 + timedelta(hours=h) for h in range(-WINDOW_H, 2)]
     wet_hours, snow_hours = [], []
     for t in hours:

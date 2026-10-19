@@ -110,7 +110,23 @@ specular fraction (about 0.2). A single global fraction is kept on purpose.
 
 ## 8. Recorded at registration
 
-* Snow-check stations: *to fill (before scene selection)*
+* Snow-check stations (chosen 2026-10-19 from GeoSphere Austria's
+  `klima-v2-1h` station metadata and 2024-07-12 to 2024-09-15 data
+  completeness, before any scene selection for this region; ids in
+  `validation/snow_check.py`):
+  * Precipitation (wet hour if any reads ≥ 0.3 mm): every active GeoSphere
+    gauge at 1,500 m or higher inside the region that reports 2024
+    precipitation: Rudolfshütte (2,317 m), Patscherkofel (2,251 m),
+    Schmittenhöhe (1,956 m), Obergurgl (1,941 m), Hahnenkamm-Sonnenrast
+    (1,667 m), Kolm-Saigurn (1,626 m), Hintertux (1,505 m); all at least 99.6%
+    complete. Left out: Sonnblick and Hahnenkamm-Ehrenbachhöhe (no 2024
+    precipitation values).
+  * Temperature (snowfall if any is at or below +1.0 °C in a wet hour), every
+    station at 2,500 m or higher in or next to the region: Sonnblick (3,109 m,
+    inside), Brunnenkogel (3,437 m) and Pitztaler Gletscher (2,864 m), both
+    about 10 km west of the region; all 100% complete.
+  * Coverage gap: no GeoSphere station south of the Austrian-Italian border;
+    the far east (12.7-13 E) is covered by Sonnblick and Kolm-Saigurn only.
 * Scene IDs: *to fill*
 * Pipeline commit: *to fill*
 

@@ -22,7 +22,8 @@ DEFAULT_SEED = 20261010
 # Regions by name: (lon range, lat range). "bernese" is round 1 (docs/prereg.md);
 # "graubuenden" is round 2 (docs/prereg_angular.md), where every tile is a test
 # tile. The calibration / held-out split applies to round 1 only.
-REGIONS = {"bernese": (LON_RANGE, LAT_RANGE), "graubuenden": ((9.0, 11.0), (46.0, 47.0))}
+REGIONS = {"bernese": (LON_RANGE, LAT_RANGE), "graubuenden": ((9.0, 11.0), (46.0, 47.0)),
+           "tyrol": ((11.0, 13.0), (46.5, 47.5))}  # round 3, docs/prereg_partb.md
 
 # Areas already looked at during development (must not be held out):
 # the hillshade comparison crop (scripts/compare_hillshade.py).
