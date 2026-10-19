@@ -127,7 +127,27 @@ specular fraction (about 0.2). A single global fraction is kept on purpose.
     about 10 km west of the region; all 100% complete.
   * Coverage gap: no GeoSphere station south of the Austrian-Italian border;
     the far east (12.7-13 E) is covered by Sonnblick and Kolm-Saigurn only.
-* Scene IDs: *to fill*
+* Scene IDs (selection rule applied to the public catalogue on 2026-10-19 with
+  `python -m validation.select_scenes --region tyrol`, metadata only;
+  `build/validation/round3/selected_scenes.json`):
+  * Ascending, relative orbit 117, datatake 06B839, 98.2% of the region (two
+    slices): `S1A_IW_GRDH_1SDV_20240809T170721_20240809T170746_055139_06B839_4E16`,
+    `S1A_IW_GRDH_1SDV_20240809T170746_20240809T170811_055139_06B839_611A`.
+    Zero-Doppler over 47.0 N 12.0 E: 2024-08-09 17:07:42 UTC, incidence 42.4°.
+  * Descending, relative orbit 95, datatake 06B755, 99.0% of the region (two
+    slices): `S1A_IW_GRDH_1SDV_20240808T051857_20240808T051922_055117_06B755_6AB2`,
+    `S1A_IW_GRDH_1SDV_20240808T051922_20240808T051947_055117_06B755_2B09`.
+    Zero-Doppler over 47.0 N 12.0 E: 2024-08-08 05:19:14 UTC, incidence 42.2°.
+  * Snow check: the descending acquisition closest to 2024-08-15 (2024-08-20,
+    06BDB8) fails: snowfall evidence in 13 h, first 2024-08-18 19:00 UTC
+    (Brunnenkogel +0.8 °C in a wet hour), the cold front that also excluded
+    round 1's first choice. The selected ones pass with no snowfall evidence,
+    but after wet spells: ascending 19 wet hours in the preceding 72 h (up to
+    46.6 mm at one gauge), descending 12 (up to 42.1 mm). Wet ground before an
+    acquisition is allowed by the rule; it may raise backscatter, and is
+    stated here before any result.
+  * Both relative orbits (117, 95) are new: rounds 1 and 2 used 88, 66, 15
+    and 168.
 * Pipeline commit: *to fill*
 
 ## Amendments
