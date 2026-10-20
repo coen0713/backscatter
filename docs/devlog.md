@@ -303,3 +303,18 @@ Logistics: Windows' Temp cleanup had eaten the scratch toolchain (cmake
 modules, pip, numpy), so the build environment now lives in `.venv` with the
 same pinned versions; the rebuilt renderer reproduces old renders bit for
 bit. A Windows Update restart killed the first fit 15 minutes in.
+
+## 2026-10-19: round 3, Part B succeeds
+
+Prereg 3 was registered at `961c5f0`, and each model was run once on Tyrol /
+Hohe Tauern (200 unseen tiles, orbits 117 and 95). The revised model, with
+its specular lobe at 4.6% and fitted on round-1 data only, meets every
+threshold for all four classes in both passes. Slope ratios came out at
+0.84-1.00, both biases within 1.2 dB, and all round-1 criteria still pass.
+Every prediction held. The current model's mismatch replicated a second time
+(A1 1.35-2.28, A2 +3.0 to +8.0 dB).
+
+Bare rock was the stated risk and is the weakest class again, but it is
+inside the thresholds. A Copernicus DEM error at Großglockner's summit (about
+190 m low over a few cells) turned up while preparing the DEM, and is noted,
+not acted on. This run had no interruptions.

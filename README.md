@@ -52,6 +52,13 @@ agree with ESA SNAP at tolerant F1 0.95-0.99, predicted shadow is dark in the
 real image (AUC 0.95), bare-rock backscatter correlates at r = 0.88, and the
 median geolocation offset is under 0.5 pixel. The predictions that vegetation
 would correlate poorly were wrong: see [docs/validation.md](docs/validation.md).
+Two follow-up pre-registered rounds on unseen regions found, and then fixed,
+the model's main radiometric error: its specular lobe made backscatter 1.35-2.5
+times too sensitive to slope angle. With the lobe scaled to 4.6% (fitted on
+round-1 data only), slope ratios on a third unseen region are 0.84-1.00 and
+biases stay within 1.2 dB, with the geometry results unchanged: see
+[docs/validation_angular.md](docs/validation_angular.md) and
+[docs/validation_partb.md](docs/validation_partb.md).
 
 ## Performance
 
